@@ -1,5 +1,5 @@
 const express = require('express');
-const User = require('../models/User');
+const User = require('../models/Users');
 const Tournament = require('../models/Tournament');
 const Match = require('../models/Match');
 const Leaderboard = require('../models/Leaderboard');
