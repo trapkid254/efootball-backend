@@ -1,6 +1,6 @@
 const Payment = require('../models/Payment');
 const Tournament = require('../models/Tournament');
-const User = require('../models/User');
+const User = require('../models/Users');
 const mpesaService = require('../utils/mpesa');
 
 class PaymentController {

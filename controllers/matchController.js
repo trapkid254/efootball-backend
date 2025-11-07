@@ -1,6 +1,6 @@
 const Match = require('../models/Match');
 const Tournament = require('../models/Tournament');
-const User = require('../models/User');
+const User = require('../models/Users');
 const Leaderboard = require('../models/Leaderboard');
 
 class MatchController {
