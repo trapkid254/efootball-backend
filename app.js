@@ -10,42 +10,50 @@ const app = express();
 // Security Middleware
 app.use(helmet());
 // CORS configuration
-const corsOptions = {
-    origin: function (origin, callback) {
-        const allowedOrigins = [
-            'https://tonakikwetu.netlify.app',
-            'http://localhost:3000',
-            'http://localhost:5500',
-            'http://127.0.0.1:5500',
-            'http://localhost:5000',
-            'https://efootball-backend-f8ws.onrender.com',
-            process.env.FRONTEND_URL
-        ].filter(Boolean);
+const allowedOrigins = [
+    'https://tonakikwetu.netlify.app',
+    'http://localhost:3000',
+    'http://localhost:5500',
+    'http://127.0.0.1:5500',
+    'http://localhost:5000',
+    'https://efootball-backend-f8ws.onrender.com',
+    process.env.FRONTEND_URL
+].filter(Boolean);
 
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
-        
-        // Check if the origin is allowed
-        if (allowedOrigins.some(allowedOrigin => 
-            origin === allowedOrigin || 
-            origin.startsWith(allowedOrigin.replace(/\*$/, ''))
-        )) {
-            return callback(null, true);
-        }
-        
-        console.warn('CORS blocked request from origin:', origin);
-        callback(new Error('Not allowed by CORS'));
-    },
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    credentials: true,
-    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
-};
+// Log allowed origins for debugging
+console.log('Allowed CORS origins:', allowedOrigins);
 
-app.use(cors(corsOptions));
-
-// Handle preflight requests
-app.options('*', cors(corsOptions));
+// CORS middleware with detailed logging
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    console.log(`Incoming ${req.method} request from origin: ${origin}`);
+    
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+        res.header('Access-Control-Allow-Origin', origin || '*');
+        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+        res.header('Access-Control-Allow-Credentials', 'true');
+        return res.status(200).end();
+    }
+    
+    // For non-preflight requests
+    if (origin && allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Authorization');
+        return next();
+    }
+    
+    // Handle requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+        return next();
+    }
+    
+    // Log blocked requests
+    console.warn('CORS blocked request from origin:', origin);
+    res.status(403).json({ error: 'Not allowed by CORS' });
+});
 
 // Rate limiting
 const limiter = rateLimit({
@@ -62,14 +70,30 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static('uploads'));
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/tona-kikwetu', {
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/tona-kikwetu';
+
+// Log database connection info (without credentials)
+console.log('Connecting to MongoDB...');
+
+mongoose.connect(MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+    socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
 })
 .then(() => console.log('✅ MongoDB connected successfully'))
 .catch(err => {
     console.error('❌ MongoDB connection error:', err);
     process.exit(1);
+});
+
+// Test endpoint
+app.get('/api/test', (req, res) => {
+    res.json({
+        message: 'CORS test successful!',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development'
+    });
 });
 
 // Routes
