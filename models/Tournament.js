@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { generateFixtures, updateTournamentLeaderboard, generateNextKnockoutRound } = require('../utils/fixtureGenerator');
 
 const tournamentSchema = new mongoose.Schema({
     name: {
@@ -87,7 +88,37 @@ const tournamentSchema = new mongoose.Schema({
             enum: ['registered', 'checked-in', 'disqualified'],
             default: 'registered'
         },
-        seed: Number
+        seed: Number,
+        stats: {
+            matchesPlayed: {
+                type: Number,
+                default: 0
+            },
+            wins: {
+                type: Number,
+                default: 0
+            },
+            draws: {
+                type: Number,
+                default: 0
+            },
+            losses: {
+                type: Number,
+                default: 0
+            },
+            goalsFor: {
+                type: Number,
+                default: 0
+            },
+            goalsAgainst: {
+                type: Number,
+                default: 0
+            },
+            points: {
+                type: Number,
+                default: 0
+            }
+        }
     }],
     groups: [{
         name: String,
@@ -123,6 +154,51 @@ const tournamentSchema = new mongoose.Schema({
     requiresApproval: {
         type: Boolean,
         default: false
+    },
+    fixtureSettings: {
+        matchesPerDay: {
+            type: Number,
+            default: 3
+        },
+        matchDuration: {
+            type: Number,
+            default: 30
+        },
+        breakBetweenMatches: {
+            type: Number,
+            default: 15
+        },
+        startTime: {
+            type: String,
+            default: '18:00'
+        },
+        daysOfWeek: {
+            type: [Number],
+            default: [5, 6]
+        }
+    },
+    leaderboardSettings: {
+        pointsForWin: {
+            type: Number,
+            default: 3
+        },
+        pointsForDraw: {
+            type: Number,
+            default: 1
+        },
+        pointsForLoss: {
+            type: Number,
+            default: 0
+        },
+        sortBy: {
+            type: String,
+            enum: ['points', 'goalDifference', 'goalsFor', 'alphabetical'],
+            default: 'points'
+        },
+        tiebreakers: {
+            type: [String],
+            default: ['points', 'goalDifference', 'goalsFor', 'headToHead']
+        }
     }
 }, {
     timestamps: true
@@ -171,8 +247,22 @@ tournamentSchema.methods.addParticipant = function(userId) {
     
     this.participants.push({
         player: userId,
-        seed: this.participantCount + 1
+        seed: this.participantCount + 1,
+        stats: {
+            matchesPlayed: 0,
+            wins: 0,
+            draws: 0,
+            losses: 0,
+            goalsFor: 0,
+            goalsAgainst: 0,
+            points: 0
+        }
     });
+    
+    // Check if we've reached capacity and need to generate fixtures
+    if (this.participantCount + 1 === this.settings.capacity && this.format !== 'league') {
+        this.generateFixtures();
+    }
     
     return this.save();
 };
@@ -208,11 +298,95 @@ tournamentSchema.pre('save', function(next) {
         this.status = 'active';
     }
     
-    if (this.schedule.tournamentEnd && now >= this.schedule.tournamentEnd) {
+    if (this.schedule.tournamentEnd && now > this.schedule.tournamentEnd) {
         this.status = 'completed';
     }
     
     next();
 });
+
+/**
+ * Generate fixtures for the tournament
+ * @returns {Promise} Resolves when fixtures are generated
+ */
+tournamentSchema.methods.generateFixtures = async function() {
+    if (this.status === 'completed') {
+        throw new Error('Cannot generate fixtures for a completed tournament');
+    }
+    
+    if (this.participantCount < 2) {
+        throw new Error('Need at least 2 participants to generate fixtures');
+    }
+    
+    // Generate fixtures using the fixture generator
+    const matches = await generateFixtures(this);
+    
+    // Save matches and update tournament
+    const savedMatches = await Match.insertMany(matches);
+    this.matches = savedMatches.map(match => match._id);
+    this.status = 'upcoming';
+    
+    return this.save();
+};
+
+/**
+ * Update the tournament leaderboard
+ * @returns {Promise} Resolves with the updated tournament
+ */
+tournamentSchema.methods.updateLeaderboard = async function() {
+    return updateTournamentLeaderboard(this._id);
+};
+
+/**
+ * Generate the next round of a knockout tournament
+ * @returns {Promise} Resolves with the updated tournament
+ */
+tournamentSchema.methods.generateNextKnockoutRound = async function() {
+    if (this.format !== 'knockout' && this.format !== 'group+knockout') {
+        throw new Error('Can only generate knockout rounds for knockout tournaments');
+    }
+    
+    return generateNextKnockoutRound(this._id);
+};
+
+/**
+ * Get the current leaderboard for the tournament
+ * @returns {Array} Sorted array of participants with their stats
+ */
+tournamentSchema.methods.getLeaderboard = function() {
+    return [...this.participants].sort((a, b) => {
+        // Sort by points (descending)
+        if (a.stats.points !== b.stats.points) {
+            return b.stats.points - a.stats.points;
+        }
+        
+        // If points are equal, use tiebreakers
+        for (const tiebreaker of this.leaderboardSettings.tiebreakers) {
+            switch (tiebreaker) {
+                case 'goalDifference':
+                    const diffA = a.stats.goalsFor - a.stats.goalsAgainst;
+                    const diffB = b.stats.goalsFor - b.stats.goalsAgainst;
+                    if (diffA !== diffB) return diffB - diffA;
+                    break;
+                    
+                case 'goalsFor':
+                    if (a.stats.goalsFor !== b.stats.goalsFor) {
+                        return b.stats.goalsFor - a.stats.goalsFor;
+                    }
+                    break;
+                    
+                case 'headToHead':
+                    // In a real app, we'd check head-to-head results
+                    // For now, we'll just use a random value
+                    return Math.random() - 0.5;
+                    
+                case 'alphabetical':
+                    return a.player.efootballId.localeCompare(b.player.efootballId);
+            }
+        }
+        
+        return 0;
+    });
+};
 
 module.exports = mongoose.model('Tournament', tournamentSchema);
