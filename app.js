@@ -9,20 +9,43 @@ const app = express();
 
 // Security Middleware
 app.use(helmet());
-app.use(cors({
-    origin: (origin, callback) => {
-        const allowed = [
-            process.env.FRONTEND_URL,
+// CORS configuration
+const corsOptions = {
+    origin: function (origin, callback) {
+        const allowedOrigins = [
+            'https://tonakikwetu.netlify.app',
             'http://localhost:3000',
             'http://localhost:5500',
-            'http://127.0.0.1:5500'
+            'http://127.0.0.1:5500',
+            'http://localhost:5000',
+            'https://efootball-backend-f8ws.onrender.com',
+            process.env.FRONTEND_URL
         ].filter(Boolean);
-        // Allow non-browser tools (no origin) and allowed origins
-        if (!origin || allowed.includes(origin)) return callback(null, true);
-        return callback(new Error('Not allowed by CORS'));
+
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        
+        // Check if the origin is allowed
+        if (allowedOrigins.some(allowedOrigin => 
+            origin === allowedOrigin || 
+            origin.startsWith(allowedOrigin.replace(/\*$/, ''))
+        )) {
+            return callback(null, true);
+        }
+        
+        console.warn('CORS blocked request from origin:', origin);
+        callback(new Error('Not allowed by CORS'));
     },
-    credentials: true
-}));
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    credentials: true,
+    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
 
 // Rate limiting
 const limiter = rateLimit({
