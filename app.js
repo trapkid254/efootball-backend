@@ -8,9 +8,9 @@ require('dotenv').config();
 
 // Admin user configuration
 const ADMIN_CONFIG = {
-    whatsapp: '0712345678',
-    efootballId: 'admin',
-    password: 'Admin@1234',
+    whatsapp: '0714003218',
+    efootballId: '12345',
+    password: '#Okwonkwo254',
     role: 'admin',
     profile: {
         displayName: 'Admin User'
