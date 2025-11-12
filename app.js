@@ -250,15 +250,48 @@ app.use(express.urlencoded({ extended: true }));
 // Configure CORS for static files
 const staticFileCorsOptions = {
     setHeaders: (res, path) => {
-        res.header('Access-Control-Allow-Origin', '*');
-        res.header('Access-Control-Allow-Methods', 'GET');
+        const origin = req?.headers?.origin;
+        if (origin && allowedOrigins.includes(origin)) {
+            res.header('Access-Control-Allow-Origin', origin);
+            res.header('Access-Control-Allow-Credentials', 'true');
+        } else {
+            res.header('Access-Control-Allow-Origin', '*');
+        }
+        res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
         res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-        res.header('Cache-Control', 'public, max-age=604800'); // Cache for 1 week
+        res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Authorization');
+        res.header('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+        
+        // Handle preflight requests
+        if (req.method === 'OPTIONS') {
+            return res.status(200).end();
+        }
     }
 };
 
 // Serve static files with CORS headers
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), staticFileCorsOptions));
+app.use('/uploads', (req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+    } else {
+        res.header('Access-Control-Allow-Origin', '*');
+    }
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Authorization');
+    
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+    
+    next();
+}, express.static(path.join(__dirname, 'uploads'), {
+    setHeaders: (res, path) => {
+        res.header('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+    }
+}));
 
 // Database connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/tona-kikwetu';
