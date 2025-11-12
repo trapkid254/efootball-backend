@@ -1,5 +1,6 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const User = require('../models/Users');
 const auth = require('../middleware/auth');
 const router = express.Router();
@@ -94,50 +95,38 @@ router.post('/register', async (req, res) => {
         // Save user to database
         await user.save();
 
-        console.log('New user registered:', {
+        console.log('New user registered successfully:', {
             _id: user._id,
             whatsapp: user.whatsapp,
             efootballId: user.efootballId,
             role: user.role,
-            isVerified: user.isVerified
+            isVerified: user.isVerified,
+            isActive: user.isActive
         });
 
-        // In production, send verification email/SMS here
-        // For now, we'll automatically verify the user
+        // For now, we'll auto-verify the user
+        // In production, you should implement email/SMS verification
         user.isVerified = true;
         await user.save();
 
         // Create JWT token
-        const payload = {
-            user: {
-                id: user.id,
-                role: user.role,
-                isVerified: user.isVerified
-            }
-        };
-
-        jwt.sign(
-            payload,
+        const token = jwt.sign(
+            { userId: user._id },
             process.env.JWT_SECRET || 'tona-kikwetu-secret-key',
-            { expiresIn: '30d' }, // 30 days
-            (err, token) => {
-                if (err) {
-                    console.error('Error generating JWT:', err);
-                    throw err;
-                }
-                
-                // Don't send password in response
-                const userResponse = user.toObject();
-                delete userResponse.password;
-                
-                res.status(201).json({
-                    success: true,
-                    token,
-                    user: userResponse,
-                    message: 'Registration successful! You can now log in.'
-                });
-            }
+            { expiresIn: '7d' }
         );
+
+        // Don't send password in response
+        const userResponse = user.toObject();
+        delete userResponse.password;
+
+        // Send success response with token and user data
+        res.status(201).json({
+            success: true,
+            token,
+            user: userResponse,
+            message: 'Registration successful! You are now logged in.'
+        });
     } catch (err) {
         console.error('Registration error:', err);
         res.status(500).json({
