@@ -248,6 +248,7 @@ app.get('/api/test', (req, res) => {
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/tournaments', require('./routes/tournaments'));
+app.use('/api/user', require('./routes/userTournaments'));
 app.use('/api/matches', require('./routes/matches'));
 app.use('/api/players', require('./routes/players'));
 app.use('/api/admin', require('./routes/admin'));
