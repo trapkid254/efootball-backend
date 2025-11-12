@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
+const path = require('path');
 require('dotenv').config();
 
 // Admin user configuration
@@ -245,10 +246,14 @@ app.get('/api/test', (req, res) => {
     });
 });
 
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/tournaments', require('./routes/tournaments'));
 app.use('/api/user', require('./routes/userTournaments'));
+app.use('/api/users', require('./routes/users'));
 app.use('/api/matches', require('./routes/matches'));
 app.use('/api/players', require('./routes/players'));
 app.use('/api/admin', require('./routes/admin'));

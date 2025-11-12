@@ -25,13 +25,14 @@ const userSchema = new mongoose.Schema({
     password: {
         type: String,
         required: [true, 'Password is required'],
-        minlength: [6, 'Password must be at least 6 characters']
+        minlength: [6, 'Password must be at least 6 characters'],
+        select: false
+    },
+    avatar: {
+        type: String,
+        default: null
     },
     profile: {
-        avatar: {
-            type: String,
-            default: null
-        },
         displayName: {
             type: String,
             trim: true
@@ -46,10 +47,11 @@ const userSchema = new mongoose.Schema({
         }
     },
     stats: {
-        totalMatches: { type: Number, default: 0 },
+        matchesPlayed: { type: Number, default: 0 },
         wins: { type: Number, default: 0 },
         losses: { type: Number, default: 0 },
         draws: { type: Number, default: 0 },
+        winRate: { type: Number, default: 0 },
         points: { type: Number, default: 0 },
         ranking: { type: Number, default: 0 }
     },
