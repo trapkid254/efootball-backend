@@ -50,28 +50,34 @@ async function initializeAdminUser() {
         // Hash the password
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(ADMIN_CONFIG.password, salt);
+        console.log('Hashed password created successfully');
         
         if (!admin) {
             console.log('No admin user found, creating new one...');
             
-            // Create admin user
-            admin = new User({
-                whatsapp: ADMIN_CONFIG.whatsapp,
-                efootballId: ADMIN_CONFIG.efootballId,
-                password: hashedPassword,
-                role: 'admin',  // Explicitly set role
-                profile: ADMIN_CONFIG.profile,
-                isActive: true,
-                isVerified: true
-            });
-            
             try {
+                // Create new admin user
+                admin = new User({
+                    whatsapp: ADMIN_CONFIG.whatsapp,
+                    efootballId: ADMIN_CONFIG.efootballId,
+                    password: hashedPassword,
+                    role: 'admin',
+                    profile: ADMIN_CONFIG.profile || {},
+                    isActive: true,
+                    isVerified: true
+                });
+                
+                console.log('Saving new admin user...');
                 await admin.save();
                 console.log('✅ Admin user created successfully');
                 
-                // Verify the user was saved
-                const savedAdmin = await User.findOne({ _id: admin._id });
-                console.log('✅ Verified admin user in database:', {
+                // Verify the admin was saved correctly
+                const savedAdmin = await User.findById(admin._id);
+                if (!savedAdmin) {
+                    throw new Error('Failed to verify admin user creation');
+                }
+                
+                console.log('✅ Verified admin user creation:', {
                     _id: savedAdmin._id,
                     whatsapp: savedAdmin.whatsapp,
                     efootballId: savedAdmin.efootballId,
@@ -128,10 +134,29 @@ async function initializeAdminUser() {
                 });
                 
                 // Verify password
-                const isPasswordValid = await bcrypt.compare(ADMIN_CONFIG.password, updatedAdmin.password);
-                console.log('✅ Password verification after update:', isPasswordValid ? 'Valid' : 'Invalid');
-                
-                return updatedAdmin;
+                try {
+                    if (!updatedAdmin.password) {
+                        console.error('❌ Admin user has no password set');
+                        throw new Error('Admin user has no password set');
+                    }
+                    
+                    console.log('Verifying admin password...');
+                    const isPasswordValid = await bcrypt.compare(ADMIN_CONFIG.password, updatedAdmin.password);
+                    console.log('✅ Password verification after update:', isPasswordValid ? 'Valid' : 'Invalid');
+                    
+                    if (!isPasswordValid) {
+                        console.warn('⚠️ Admin password verification failed - this might be expected on first run');
+                        // Update the password if verification fails (might be first run or password change)
+                        updatedAdmin.password = hashedPassword;
+                        await updatedAdmin.save();
+                        console.log('✅ Admin password updated successfully');
+                    }
+                    
+                    return updatedAdmin;
+                } catch (passwordError) {
+                    console.error('❌ Error verifying admin password:', passwordError);
+                    throw passwordError;
+                }
             } catch (updateError) {
                 console.error('❌ Error updating admin user:', updateError);
                 if (updateError.name === 'ValidationError') {
