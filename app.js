@@ -3,7 +3,64 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const bcrypt = require('bcryptjs');
 require('dotenv').config();
+
+// Admin user configuration
+const ADMIN_CONFIG = {
+    whatsapp: '0712345678',
+    efootballId: 'admin',
+    password: 'Admin@1234',
+    role: 'admin',
+    profile: {
+        displayName: 'Admin User'
+    },
+    isActive: true,
+    isVerified: true
+};
+
+// Function to initialize admin user
+async function initializeAdminUser() {
+    try {
+        const User = require('./models/Users');
+        
+        // Check if admin user already exists
+        let admin = await User.findOne({ role: 'admin' });
+        
+        if (!admin) {
+            // Hash password
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(ADMIN_CONFIG.password, salt);
+            
+            // Create admin user
+            admin = new User({
+                ...ADMIN_CONFIG,
+                password: hashedPassword
+            });
+            
+            await admin.save();
+            console.log('✅ Admin user created successfully');
+        } else {
+            // Update existing admin user with current config
+            admin.whatsapp = ADMIN_CONFIG.whatsapp;
+            admin.efootballId = ADMIN_CONFIG.efootballId;
+            admin.profile = ADMIN_CONFIG.profile;
+            admin.isActive = true;
+            admin.isVerified = true;
+            
+            // Only update password if it's the default one
+            if (ADMIN_CONFIG.password === 'Admin@1234') {
+                const salt = await bcrypt.genSalt(10);
+                admin.password = await bcrypt.hash(ADMIN_CONFIG.password, salt);
+            }
+            
+            await admin.save();
+            console.log('✅ Admin user updated successfully');
+        }
+    } catch (error) {
+        console.error('❌ Error initializing admin user:', error);
+    }
+}
 
 const app = express();
 
@@ -81,7 +138,11 @@ mongoose.connect(MONGODB_URI, {
     serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
     socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
 })
-.then(() => console.log('✅ MongoDB connected successfully'))
+.then(async () => {
+    console.log('✅ MongoDB connected successfully');
+    // Initialize admin user after successful database connection
+    await initializeAdminUser();
+})
 .catch(err => {
     console.error('❌ MongoDB connection error:', err);
     process.exit(1);
