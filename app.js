@@ -215,25 +215,19 @@ app.use((req, res, next) => {
     const origin = req.headers.origin;
     console.log(`Incoming ${req.method} request from origin: ${origin}`);
     
-    // Handle preflight requests
-    if (req.method === 'OPTIONS') {
-        res.header('Access-Control-Allow-Origin', origin || '*');
-        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-        res.header('Access-Control-Allow-Credentials', 'true');
-        return res.status(200).end();
-    }
-    
-    // For non-preflight requests
+    // Set CORS headers for all responses
     if (origin && allowedOrigins.includes(origin)) {
         res.header('Access-Control-Allow-Origin', origin);
         res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
         res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Authorization');
-        return next();
-    }
-    
-    // Handle requests with no origin (like mobile apps or curl requests)
-    if (!origin) {
+        
+        // Handle preflight requests
+        if (req.method === 'OPTIONS') {
+            return res.status(200).end();
+        }
+        
         return next();
     }
     
