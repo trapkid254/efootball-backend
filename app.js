@@ -32,54 +32,121 @@ async function initializeAdminUser() {
             role: ADMIN_CONFIG.role
         });
         
-        // Check if admin user already exists
+        // Check if admin user already exists by role first
         let admin = await User.findOne({ role: 'admin' });
+        
+        // If no admin by role, check by whatsapp or efootballId
+        if (!admin) {
+            console.log('No admin user found by role, checking by credentials...');
+            admin = await User.findOne({
+                $or: [
+                    { whatsapp: ADMIN_CONFIG.whatsapp },
+                    { efootballId: ADMIN_CONFIG.efootballId }
+                ]
+            });
+        }
+        
+        // Hash the password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(ADMIN_CONFIG.password, salt);
         
         if (!admin) {
             console.log('No admin user found, creating new one...');
-            // Hash password
-            const salt = await bcrypt.genSalt(10);
-            const hashedPassword = await bcrypt.hash(ADMIN_CONFIG.password, salt);
             
             // Create admin user
             admin = new User({
-                ...ADMIN_CONFIG,
-                password: hashedPassword
+                whatsapp: ADMIN_CONFIG.whatsapp,
+                efootballId: ADMIN_CONFIG.efootballId,
+                password: hashedPassword,
+                role: 'admin',  // Explicitly set role
+                profile: ADMIN_CONFIG.profile,
+                isActive: true,
+                isVerified: true
             });
             
-            await admin.save();
-            console.log('✅ Admin user created successfully');
-            
-            // Log the created admin user (without sensitive data)
-            const { password, ...adminWithoutPassword } = admin.toObject();
-            console.log('Created admin user:', adminWithoutPassword);
+            try {
+                await admin.save();
+                console.log('✅ Admin user created successfully');
+                
+                // Verify the user was saved
+                const savedAdmin = await User.findOne({ _id: admin._id });
+                console.log('✅ Verified admin user in database:', {
+                    _id: savedAdmin._id,
+                    whatsapp: savedAdmin.whatsapp,
+                    efootballId: savedAdmin.efootballId,
+                    role: savedAdmin.role,
+                    isActive: savedAdmin.isActive,
+                    isVerified: savedAdmin.isVerified
+                });
+                
+                // Verify password
+                const isPasswordValid = await bcrypt.compare(ADMIN_CONFIG.password, savedAdmin.password);
+                console.log('✅ Password verification:', isPasswordValid ? 'Valid' : 'Invalid');
+                
+                return savedAdmin;
+            } catch (saveError) {
+                console.error('❌ Error saving admin user:', saveError);
+                if (saveError.name === 'ValidationError') {
+                    console.error('Validation errors:', Object.values(saveError.errors).map(e => e.message));
+                }
+                throw saveError;
+            }
         } else {
             console.log('Existing admin user found, updating...');
-            // Log the existing admin user (without sensitive data)
-            const { password, ...existingAdmin } = admin.toObject();
-            console.log('Existing admin user:', existingAdmin);
+            console.log('Current admin data:', {
+                _id: admin._id,
+                whatsapp: admin.whatsapp,
+                efootballId: admin.efootballId,
+                role: admin.role,
+                isActive: admin.isActive,
+                isVerified: admin.isVerified
+            });
             
             // Update existing admin user with current config
             admin.whatsapp = ADMIN_CONFIG.whatsapp;
             admin.efootballId = ADMIN_CONFIG.efootballId;
+            admin.role = 'admin'; // Ensure role is set to admin
             admin.profile = ADMIN_CONFIG.profile;
             admin.isActive = true;
             admin.isVerified = true;
+            admin.password = hashedPassword; // Always update password
             
-            // Always update the password to ensure it's correct
-            console.log('Updating admin password...');
-            const salt = await bcrypt.genSalt(10);
-            admin.password = await bcrypt.hash(ADMIN_CONFIG.password, salt);
-            
-            await admin.save();
-            console.log('✅ Admin user updated successfully');
-            
-            // Verify the password was set correctly
-            const isPasswordValid = await bcrypt.compare(ADMIN_CONFIG.password, admin.password);
-            console.log('Password verification:', isPasswordValid ? '✅ Valid' : '❌ Invalid');
+            try {
+                await admin.save();
+                console.log('✅ Admin user updated successfully');
+                
+                // Verify the update
+                const updatedAdmin = await User.findOne({ _id: admin._id });
+                console.log('✅ Verified updated admin:', {
+                    _id: updatedAdmin._id,
+                    whatsapp: updatedAdmin.whatsapp,
+                    efootballId: updatedAdmin.efootballId,
+                    role: updatedAdmin.role,
+                    isActive: updatedAdmin.isActive,
+                    isVerified: updatedAdmin.isVerified
+                });
+                
+                // Verify password
+                const isPasswordValid = await bcrypt.compare(ADMIN_CONFIG.password, updatedAdmin.password);
+                console.log('✅ Password verification after update:', isPasswordValid ? 'Valid' : 'Invalid');
+                
+                return updatedAdmin;
+            } catch (updateError) {
+                console.error('❌ Error updating admin user:', updateError);
+                if (updateError.name === 'ValidationError') {
+                    console.error('Validation errors:', Object.values(updateError.errors).map(e => e.message));
+                }
+                throw updateError;
+            }
         }
     } catch (error) {
-        console.error('❌ Error initializing admin user:', error);
+        console.error('❌ Critical error in initializeAdminUser:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
+        // Don't crash the server, but make sure we log the error
+        process.exit(1);
     }
 }
 

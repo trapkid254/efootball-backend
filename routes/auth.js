@@ -83,8 +83,11 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
     try {
         console.log('Login request received:', {
-            body: req.body,
-            headers: req.headers
+            body: { ...req.body, password: req.body.password ? '[REDACTED]' : 'MISSING' },
+            headers: {
+                ...req.headers,
+                'authorization': req.headers.authorization ? '[REDACTED]' : 'MISSING'
+            }
         });
 
         const { whatsapp, efootballId, password } = req.body;
@@ -94,7 +97,8 @@ router.post('/login', async (req, res) => {
             console.log('Login failed: No password provided');
             return res.status(400).json({
                 success: false,
-                message: 'Password is required'
+                message: 'Password is required',
+                errorType: 'MISSING_PASSWORD'
             });
         }
         
@@ -102,35 +106,68 @@ router.post('/login', async (req, res) => {
             console.log('Login failed: No identifier provided');
             return res.status(400).json({
                 success: false,
-                message: 'WhatsApp number or Efootball ID is required'
+                message: 'WhatsApp number or Efootball ID is required',
+                errorType: 'MISSING_IDENTIFIER'
             });
         }
 
         // Build query based on provided credentials
-        const query = {};
+        const queryConditions = [];
+        
         if (whatsapp) {
-            query.whatsapp = whatsapp.toString().trim();
-            console.log('Looking for user with whatsapp:', query.whatsapp);
+            const cleanWhatsapp = whatsapp.toString().trim();
+            console.log('Looking for user with whatsapp:', cleanWhatsapp);
+            queryConditions.push({ whatsapp: cleanWhatsapp });
         }
+        
         if (efootballId) {
-            query.efootballId = efootballId.toString().trim();
-            console.log('Looking for user with efootballId:', query.efootballId);
+            const cleanEfootballId = efootballId.toString().trim();
+            console.log('Looking for user with efootballId:', cleanEfootballId);
+            queryConditions.push({ efootballId: cleanEfootballId });
         }
 
+        if (queryConditions.length === 0) {
+            console.log('No valid query conditions could be built');
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid login credentials',
+                errorType: 'INVALID_CREDENTIALS'
+            });
+        }
+
+        console.log('Searching for user with conditions:', queryConditions);
+        
         // Find user by provided credentials
         const user = await User.findOne({
-            $or: [
-                whatsapp ? { whatsapp: query.whatsapp } : null,
-                efootballId ? { efootballId: query.efootballId } : null
-            ].filter(Boolean) // Remove null values from the $or array
-        });
+            $or: queryConditions
+        }).select('+password'); // Explicitly include password for verification
 
         if (!user) {
             console.log('Login failed: No user found with provided credentials');
             return res.status(401).json({
                 success: false,
                 message: 'Invalid credentials',
-                details: 'No user found with the provided credentials'
+                details: 'No user found with the provided credentials',
+                errorType: 'USER_NOT_FOUND'
+            });
+        }
+        
+        console.log('User found:', {
+            _id: user._id,
+            whatsapp: user.whatsapp,
+            efootballId: user.efootballId,
+            role: user.role,
+            isActive: user.isActive,
+            isVerified: user.isVerified
+        });
+        
+        // Check if user is active
+        if (!user.isActive) {
+            console.log('Login failed: User account is not active');
+            return res.status(401).json({
+                success: false,
+                message: 'This account has been deactivated',
+                errorType: 'ACCOUNT_DEACTIVATED'
             });
         }
 
