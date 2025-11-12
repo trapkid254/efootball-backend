@@ -253,6 +253,7 @@ app.use('/api/matches', require('./routes/matches'));
 app.use('/api/players', require('./routes/players'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/payments', require('./routes/payments'));
+app.use('/api/activity', require('./routes/activity'));
 
 // Health check route
 app.get('/api/health', (req, res) => {
