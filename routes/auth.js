@@ -83,12 +83,36 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
     try {
         const { whatsapp, efootballId, password } = req.body;
+        
+        // Validate input
+        if (!password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password is required'
+            });
+        }
+        
+        if (!whatsapp && !efootballId) {
+            return res.status(400).json({
+                success: false,
+                message: 'WhatsApp number or Efootball ID is required'
+            });
+        }
 
-        // Find user by WhatsApp or Efootball ID
+        // Build query based on provided credentials
+        const query = {};
+        if (whatsapp) {
+            query.whatsapp = whatsapp.toString().trim();
+        }
+        if (efootballId) {
+            query.efootballId = efootballId.toString().trim();
+        }
+
+        // Find user by provided credentials
         const user = await User.findOne({
             $or: [
-                { whatsapp: whatsapp.trim() },
-                { efootballId: efootballId.trim() }
+                { whatsapp: query.whatsapp },
+                { efootballId: query.efootballId }
             ]
         });
 
