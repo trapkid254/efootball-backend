@@ -18,15 +18,27 @@ const generateToken = (userId) => {
 // @desc    Register a new user
 // @access  Public
 router.post('/register', async (req, res) => {
+    console.log('Registration attempt:', { 
+        whatsapp: req.body.whatsapp, 
+        efootballId: req.body.efootballId,
+        hasPassword: !!req.body.password 
+    });
+
     try {
         const { whatsapp, efootballId, password } = req.body;
 
         // Validate input
         if (!whatsapp || !efootballId || !password) {
+            console.log('Missing fields:', { whatsapp: !!whatsapp, efootballId: !!efootballId, password: !!password });
             return res.status(400).json({
                 success: false,
                 message: 'Please provide all required fields',
-                errorType: 'MISSING_FIELDS'
+                errorType: 'MISSING_FIELDS',
+                receivedFields: {
+                    whatsapp: !!whatsapp,
+                    efootballId: !!efootballId,
+                    password: !!password
+                }
             });
         }
 
@@ -76,13 +88,13 @@ router.post('/register', async (req, res) => {
         }
 
         // Create new user
-        const user = new User({
+        const userData = {
             whatsapp: whatsapp.trim(),
             efootballId: efootballId.trim(),
-            password,
+            password: password, // Will be hashed in pre-save hook
             role: 'user',
             isActive: true,
-            isVerified: false, // Set to false, require email/SMS verification in production
+            isVerified: true, // Auto-verify for now
             profile: {
                 displayName: `Player-${efootballId.trim()}`
             },
@@ -94,39 +106,44 @@ router.post('/register', async (req, res) => {
                 points: 0,
                 ranking: 0
             }
-        });
+        };
 
-        // Hash password
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(password, salt);
+        console.log('Creating user with data:', JSON.stringify(userData, null, 2));
 
-        // Save user to database
-        await user.save();
+        const user = new User(userData);
 
-        console.log('New user registered successfully:', {
-            _id: user._id,
-            whatsapp: user.whatsapp,
-            efootballId: user.efootballId,
-            role: user.role,
-            isVerified: user.isVerified,
-            isActive: user.isActive
-        });
+        try {
+            // Save user to database (password will be hashed in pre-save hook)
+            await user.save();
+            
+            console.log('New user registered successfully:', {
+                _id: user._id,
+                whatsapp: user.whatsapp,
+                efootballId: user.efootballId,
+                role: user.role,
+                isVerified: user.isVerified,
+                isActive: user.isActive
+            });
+        } catch (saveError) {
+            console.error('Error saving user to database:', {
+                error: saveError,
+                message: saveError.message,
+                stack: saveError.stack,
+                errors: saveError.errors ? Object.keys(saveError.errors) : null,
+                code: saveError.code
+            });
+            throw saveError; // Re-throw to be caught by the outer try-catch
+        }
 
-        // For now, we'll auto-verify the user
-        // In production, you should implement email/SMS verification
-        user.isVerified = true;
-        await user.save();
+        // Create JWT token with user data
+        const token = generateToken(user._id);
 
-        // Create JWT token
-        const token = jwt.sign(
-            { userId: user._id },
-            process.env.JWT_SECRET || 'tona-kikwetu-secret-key',
-            { expiresIn: '7d' }
-        );
-
-        // Don't send password in response
+        // Prepare user response without sensitive data
         const userResponse = user.toObject();
         delete userResponse.password;
+        delete userResponse.__v; // Remove version key
+        
+        console.log('User registration successful, sending response');
 
         // Send success response with token and user data
         res.status(201).json({
@@ -136,11 +153,50 @@ router.post('/register', async (req, res) => {
             message: 'Registration successful! You are now logged in.'
         });
     } catch (err) {
-        console.error('Registration error:', err);
+        console.error('Registration error:', {
+            error: err,
+            message: err.message,
+            stack: err.stack,
+            name: err.name,
+            code: err.code,
+            keyPattern: err.keyPattern,
+            keyValue: err.keyValue,
+            errors: err.errors ? Object.keys(err.errors) : null
+        });
+
+        // Handle duplicate key errors
+        if (err.code === 11000) {
+            const field = Object.keys(err.keyPattern)[0];
+            const value = err.keyValue[field];
+            return res.status(400).json({
+                success: false,
+                message: `${field === 'whatsapp' ? 'WhatsApp number' : 'Efootball ID'} '${value}' is already registered`,
+                errorType: 'DUPLICATE_KEY',
+                field,
+                value
+            });
+        }
+
+        // Handle validation errors
+        if (err.name === 'ValidationError') {
+            const errors = {};
+            Object.keys(err.errors).forEach((key) => {
+                errors[key] = err.errors[key].message;
+            });
+            return res.status(400).json({
+                success: false,
+                message: 'Validation failed',
+                errorType: 'VALIDATION_ERROR',
+                errors
+            });
+        }
+
+        // Generic error response
         res.status(500).json({
             success: false,
             message: 'Server error during registration',
-            error: process.env.NODE_ENV === 'development' ? err.message : undefined
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+            errorType: 'SERVER_ERROR'
         });
     }
 });
