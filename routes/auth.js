@@ -14,14 +14,42 @@ const generateToken = (userId) => {
 };
 
 // @route   POST /api/auth/register
-// @desc    Register a new player
+// @desc    Register a new user
 // @access  Public
 router.post('/register', async (req, res) => {
     try {
         const { whatsapp, efootballId, password } = req.body;
 
-        // Check if user already exists
-        const existingUser = await User.findOne({
+        // Validate input
+        if (!whatsapp || !efootballId || !password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide all required fields',
+                errorType: 'MISSING_FIELDS'
+            });
+        }
+
+        // Validate WhatsApp number format
+        const whatsappRegex = /^(07\d{8}|\+2547\d{8}|2547\d{8})$/;
+        if (!whatsappRegex.test(whatsapp.replace(/\s/g, ''))) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide a valid WhatsApp number',
+                errorType: 'INVALID_WHATSAPP'
+            });
+        }
+
+        // Validate password strength
+        if (password.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password must be at least 6 characters long',
+                errorType: 'WEAK_PASSWORD'
+            });
+        }
+
+        // Check if user already exists with same WhatsApp or Efootball ID
+        const existingUser = await User.findOne({ 
             $or: [
                 { whatsapp: whatsapp.trim() },
                 { efootballId: efootballId.trim() }
@@ -29,9 +57,12 @@ router.post('/register', async (req, res) => {
         });
 
         if (existingUser) {
+            const errorField = existingUser.whatsapp === whatsapp.trim() ? 'WhatsApp number' : 'Efootball ID';
             return res.status(400).json({
                 success: false,
-                message: 'User with this WhatsApp number or Efootball ID already exists'
+                message: `${errorField} is already registered`,
+                errorType: 'USER_EXISTS',
+                field: errorField === 'WhatsApp number' ? 'whatsapp' : 'efootballId'
             });
         }
 
@@ -40,39 +71,79 @@ router.post('/register', async (req, res) => {
             whatsapp: whatsapp.trim(),
             efootballId: efootballId.trim(),
             password,
+            role: 'user',
+            isActive: true,
+            isVerified: false, // Set to false, require email/SMS verification in production
             profile: {
-                displayName: efootballId.trim()
+                displayName: `Player-${efootballId.trim()}`
+            },
+            stats: {
+                totalMatches: 0,
+                wins: 0,
+                losses: 0,
+                draws: 0,
+                points: 0,
+                ranking: 0
             }
         });
 
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(password, salt);
+
+        // Save user to database
         await user.save();
 
-        // Generate token
-        const token = generateToken(user._id);
+        console.log('New user registered:', {
+            _id: user._id,
+            whatsapp: user.whatsapp,
+            efootballId: user.efootballId,
+            role: user.role,
+            isVerified: user.isVerified
+        });
 
-        // Update last login
-        user.lastLogin = new Date();
+        // In production, send verification email/SMS here
+        // For now, we'll automatically verify the user
+        user.isVerified = true;
         await user.save();
 
-        res.status(201).json({
-            success: true,
-            message: 'Registration successful',
-            token,
+        // Create JWT token
+        const payload = {
             user: {
-                id: user._id,
-                whatsapp: user.whatsapp,
-                efootballId: user.efootballId,
-                profile: user.profile,
-                role: user.role
+                id: user.id,
+                role: user.role,
+                isVerified: user.isVerified
             }
-        });
+        };
 
-    } catch (error) {
-        console.error('Registration error:', error);
+        jwt.sign(
+            payload,
+            process.env.JWT_SECRET || 'tona-kikwetu-secret-key',
+            { expiresIn: '30d' }, // 30 days
+            (err, token) => {
+                if (err) {
+                    console.error('Error generating JWT:', err);
+                    throw err;
+                }
+                
+                // Don't send password in response
+                const userResponse = user.toObject();
+                delete userResponse.password;
+                
+                res.status(201).json({
+                    success: true,
+                    token,
+                    user: userResponse,
+                    message: 'Registration successful! You can now log in.'
+                });
+            }
+        );
+    } catch (err) {
+        console.error('Registration error:', err);
         res.status(500).json({
             success: false,
-            message: 'Registration failed',
-            error: error.message
+            message: 'Server error during registration',
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined
         });
     }
 });
@@ -146,9 +217,20 @@ router.post('/login', async (req, res) => {
             console.log('Login failed: No user found with provided credentials');
             return res.status(401).json({
                 success: false,
-                message: 'Invalid credentials',
-                details: 'No user found with the provided credentials',
+                message: 'Account not found',
+                details: 'No account found with the provided credentials. Please register first.',
                 errorType: 'USER_NOT_FOUND'
+            });
+        }
+        
+        // Check if user is verified
+        if (!user.isVerified) {
+            console.log('Login failed: Account not verified');
+            return res.status(401).json({
+                success: false,
+                message: 'Account not verified',
+                details: 'Please verify your account before logging in.',
+                errorType: 'ACCOUNT_NOT_VERIFIED'
             });
         }
         
