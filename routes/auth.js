@@ -82,10 +82,16 @@ router.post('/register', async (req, res) => {
 // @access  Public
 router.post('/login', async (req, res) => {
     try {
+        console.log('Login request received:', {
+            body: req.body,
+            headers: req.headers
+        });
+
         const { whatsapp, efootballId, password } = req.body;
         
         // Validate input
         if (!password) {
+            console.log('Login failed: No password provided');
             return res.status(400).json({
                 success: false,
                 message: 'Password is required'
@@ -93,6 +99,7 @@ router.post('/login', async (req, res) => {
         }
         
         if (!whatsapp && !efootballId) {
+            console.log('Login failed: No identifier provided');
             return res.status(400).json({
                 success: false,
                 message: 'WhatsApp number or Efootball ID is required'
@@ -103,23 +110,27 @@ router.post('/login', async (req, res) => {
         const query = {};
         if (whatsapp) {
             query.whatsapp = whatsapp.toString().trim();
+            console.log('Looking for user with whatsapp:', query.whatsapp);
         }
         if (efootballId) {
             query.efootballId = efootballId.toString().trim();
+            console.log('Looking for user with efootballId:', query.efootballId);
         }
 
         // Find user by provided credentials
         const user = await User.findOne({
             $or: [
-                { whatsapp: query.whatsapp },
-                { efootballId: query.efootballId }
-            ]
+                whatsapp ? { whatsapp: query.whatsapp } : null,
+                efootballId ? { efootballId: query.efootballId } : null
+            ].filter(Boolean) // Remove null values from the $or array
         });
 
         if (!user) {
+            console.log('Login failed: No user found with provided credentials');
             return res.status(401).json({
                 success: false,
-                message: 'Invalid credentials'
+                message: 'Invalid credentials',
+                details: 'No user found with the provided credentials'
             });
         }
 

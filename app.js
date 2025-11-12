@@ -24,10 +24,19 @@ async function initializeAdminUser() {
     try {
         const User = require('./models/Users');
         
+        // Log the admin config we're trying to use
+        console.log('Initializing admin user with config:', {
+            whatsapp: ADMIN_CONFIG.whatsapp,
+            efootballId: ADMIN_CONFIG.efootballId,
+            hasPassword: !!ADMIN_CONFIG.password,
+            role: ADMIN_CONFIG.role
+        });
+        
         // Check if admin user already exists
         let admin = await User.findOne({ role: 'admin' });
         
         if (!admin) {
+            console.log('No admin user found, creating new one...');
             // Hash password
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash(ADMIN_CONFIG.password, salt);
@@ -40,7 +49,16 @@ async function initializeAdminUser() {
             
             await admin.save();
             console.log('✅ Admin user created successfully');
+            
+            // Log the created admin user (without sensitive data)
+            const { password, ...adminWithoutPassword } = admin.toObject();
+            console.log('Created admin user:', adminWithoutPassword);
         } else {
+            console.log('Existing admin user found, updating...');
+            // Log the existing admin user (without sensitive data)
+            const { password, ...existingAdmin } = admin.toObject();
+            console.log('Existing admin user:', existingAdmin);
+            
             // Update existing admin user with current config
             admin.whatsapp = ADMIN_CONFIG.whatsapp;
             admin.efootballId = ADMIN_CONFIG.efootballId;
@@ -48,14 +66,17 @@ async function initializeAdminUser() {
             admin.isActive = true;
             admin.isVerified = true;
             
-            // Only update password if it's the default one
-            if (ADMIN_CONFIG.password === 'Admin@1234') {
-                const salt = await bcrypt.genSalt(10);
-                admin.password = await bcrypt.hash(ADMIN_CONFIG.password, salt);
-            }
+            // Always update the password to ensure it's correct
+            console.log('Updating admin password...');
+            const salt = await bcrypt.genSalt(10);
+            admin.password = await bcrypt.hash(ADMIN_CONFIG.password, salt);
             
             await admin.save();
             console.log('✅ Admin user updated successfully');
+            
+            // Verify the password was set correctly
+            const isPasswordValid = await bcrypt.compare(ADMIN_CONFIG.password, admin.password);
+            console.log('Password verification:', isPasswordValid ? '✅ Valid' : '❌ Invalid');
         }
     } catch (error) {
         console.error('❌ Error initializing admin user:', error);
