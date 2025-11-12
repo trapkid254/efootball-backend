@@ -113,10 +113,13 @@ async function initializeAdminUser() {
             admin.whatsapp = ADMIN_CONFIG.whatsapp;
             admin.efootballId = ADMIN_CONFIG.efootballId;
             admin.role = 'admin'; // Ensure role is set to admin
-            admin.profile = ADMIN_CONFIG.profile;
+            admin.profile = ADMIN_CONFIG.profile || {};
             admin.isActive = true;
             admin.isVerified = true;
-            admin.password = hashedPassword; // Always update password
+            
+            // Always update password with the newly hashed one
+            admin.password = hashedPassword;
+            console.log('Updating admin password...');
             
             try {
                 await admin.save();
@@ -135,21 +138,34 @@ async function initializeAdminUser() {
                 
                 // Verify password
                 try {
+                    console.log('Verifying admin password...');
+                    
+                    // First, check if password exists
                     if (!updatedAdmin.password) {
-                        console.error('❌ Admin user has no password set');
-                        throw new Error('Admin user has no password set');
+                        console.warn('⚠️ Admin has no password set, setting new password...');
+                        updatedAdmin.password = hashedPassword;
+                        await updatedAdmin.save();
+                        console.log('✅ New admin password set successfully');
+                        return updatedAdmin;
                     }
                     
-                    console.log('Verifying admin password...');
-                    const isPasswordValid = await bcrypt.compare(ADMIN_CONFIG.password, updatedAdmin.password);
+                    // If password exists, try to verify it
+                    let isPasswordValid = false;
+                    try {
+                        isPasswordValid = await bcrypt.compare(ADMIN_CONFIG.password, updatedAdmin.password);
+                    } catch (compareError) {
+                        console.warn('⚠️ Password comparison failed, likely due to invalid hash format. Updating password...', compareError.message);
+                        isPasswordValid = false;
+                    }
+                    
                     console.log('✅ Password verification after update:', isPasswordValid ? 'Valid' : 'Invalid');
                     
                     if (!isPasswordValid) {
-                        console.warn('⚠️ Admin password verification failed - this might be expected on first run');
-                        // Update the password if verification fails (might be first run or password change)
+                        console.warn('⚠️ Admin password verification failed - updating password hash...');
+                        // Update the password with a new hash
                         updatedAdmin.password = hashedPassword;
                         await updatedAdmin.save();
-                        console.log('✅ Admin password updated successfully');
+                        console.log('✅ Admin password updated with new hash');
                     }
                     
                     return updatedAdmin;
