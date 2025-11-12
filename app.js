@@ -247,8 +247,18 @@ app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Static files
-app.use('/uploads', express.static('uploads'));
+// Configure CORS for static files
+const staticFileCorsOptions = {
+    setHeaders: (res, path) => {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Methods', 'GET');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        res.header('Cache-Control', 'public, max-age=604800'); // Cache for 1 week
+    }
+};
+
+// Serve static files with CORS headers
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), staticFileCorsOptions));
 
 // Database connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/tona-kikwetu';
