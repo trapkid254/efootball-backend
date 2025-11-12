@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const auth = require('../middleware/auth');
-const User = require('../models/User');
+const User = require('../models/Users');
 
 // Create uploads directory if it doesn't exist
 const uploadDir = path.join(__dirname, '../uploads/avatars');
