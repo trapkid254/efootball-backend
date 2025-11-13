@@ -159,45 +159,38 @@ const allowedOrigins = [
     process.env.FRONTEND_URL
 ].filter(Boolean);
 
-// Log allowed origins for debugging
 console.log('Allowed CORS origins:', allowedOrigins);
 
-// Configure CORS with more permissive settings
-const corsOptions = {
-    origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
+// Simple CORS middleware function
+const corsMiddleware = (req, res, next) => {
+    const origin = req.headers.origin;
+    
+    // Check if the origin is in the allowed list or if it's a preflight request
+    if (allowedOrigins.includes(origin) || !origin || req.method === 'OPTIONS') {
+        res.setHeader('Access-Control-Allow-Origin', origin || '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Max-Age', '600');
         
-        // Normalize origin by removing trailing slashes
-        const normalizedOrigin = origin.endsWith('/') ? origin.slice(0, -1) : origin;
-        
-        // Check if the origin is in the allowed list
-        if (allowedOrigins.some(allowed => {
-            const normalizedAllowed = allowed.endsWith('/') ? allowed.slice(0, -1) : allowed;
-            return normalizedOrigin === normalizedAllowed || 
-                   normalizedOrigin.startsWith(normalizedAllowed);
-        })) {
-            console.log(`✅ Allowed CORS for origin: ${origin}`);
-            return callback(null, true);
+        // Handle preflight request
+        if (req.method === 'OPTIONS') {
+            return res.status(200).end();
         }
         
-        console.warn(`❌ CORS blocked request from origin: ${origin}`);
-        return callback(new Error('Not allowed by CORS'));
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    exposedHeaders: ['Content-Length', 'Content-Type', 'Authorization'],
-    maxAge: 600,  // Cache preflight request for 10 minutes
-    preflightContinue: false,
-    optionsSuccessStatus: 204
+        console.log(`✅ Allowed CORS for origin: ${origin || 'no-origin'}`);
+        return next();
+    }
+    
+    console.warn(`❌ CORS blocked request from origin: ${origin}`);
+    return res.status(403).json({ error: 'Not allowed by CORS' });
 };
 
-// Apply CORS middleware with preflight
-app.options('*', cors(corsOptions)); // Enable preflight for all routes
-app.use(cors(corsOptions));
+// Apply CORS middleware
+app.use(corsMiddleware);
 
-// Handle preflight requests
+// Handle preflight requests for all routes
+app.options('*', corsMiddleware);
 app.options('*', cors(corsOptions));
 
 // Rate limiting
