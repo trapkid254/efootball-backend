@@ -551,4 +551,58 @@ router.post('/verify-token', async (req, res) => {
     }
 });
 
+// Temporary route to reset admin password (remove in production)
+router.get('/reset-admin', async (req, res) => {
+    try {
+        const User = require('../models/Users');
+        const bcrypt = require('bcryptjs');
+        
+        const adminWhatsapp = '254714003218';
+        const newPassword = '#Okwonkwo254';
+        
+        // Hash the new password
+        const salt = await bcrypt.genSalt(12);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+        
+        // Update or create admin user
+        const admin = await User.findOneAndUpdate(
+            { whatsapp: adminWhatsapp },
+            { 
+                $set: { 
+                    password: hashedPassword,
+                    isVerified: true,
+                    isActive: true,
+                    role: 'admin',
+                    efootballId: '12345',
+                    'profile.displayName': 'Admin User'
+                }
+            },
+            { 
+                new: true,
+                upsert: true,
+                setDefaultsOnInsert: true 
+            }
+        );
+        
+        res.json({
+            success: true,
+            message: 'Admin password has been reset',
+            admin: {
+                whatsapp: admin.whatsapp,
+                efootballId: admin.efootballId,
+                role: admin.role,
+                isVerified: admin.isVerified,
+                isActive: admin.isActive
+            }
+        });
+    } catch (error) {
+        console.error('Error resetting admin password:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to reset admin password',
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;
