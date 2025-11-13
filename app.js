@@ -161,37 +161,30 @@ const allowedOrigins = [
 
 console.log('Allowed CORS origins:', allowedOrigins);
 
-// Simple CORS middleware function
-const corsMiddleware = (req, res, next) => {
+// Enable CORS for all routes
+app.use((req, res, next) => {
     const origin = req.headers.origin;
     
-    // Check if the origin is in the allowed list or if it's a preflight request
-    if (allowedOrigins.includes(origin) || !origin || req.method === 'OPTIONS') {
-        res.setHeader('Access-Control-Allow-Origin', origin || '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Access-Control-Max-Age', '600');
-        
-        // Handle preflight request
-        if (req.method === 'OPTIONS') {
-            return res.status(200).end();
-        }
-        
-        console.log(`✅ Allowed CORS for origin: ${origin || 'no-origin'}`);
-        return next();
+    // Allow all origins for now (for testing)
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Max-Age', '600');
+    
+    // Handle preflight request
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
     }
     
-    console.warn(`❌ CORS blocked request from origin: ${origin}`);
-    return res.status(403).json({ error: 'Not allowed by CORS' });
-};
+    console.log(`✅ Request from origin: ${origin || 'no-origin'} (${req.method} ${req.path})`);
+    next();
+});
 
-// Apply CORS middleware
-app.use(corsMiddleware);
-
-// Handle preflight requests for all routes
-app.options('*', corsMiddleware);
-app.options('*', cors(corsOptions));
+// Add a health check endpoint
+app.get('/api/auth/health', (req, res) => {
+    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Rate limiting
 const limiter = rateLimit({
@@ -253,15 +246,63 @@ const connectDB = async () => {
     }
 };
 
+// Function to get an available port
+const getAvailablePort = async (port) => {
+    const net = require('net');
+    return new Promise((resolve, reject) => {
+        const server = net.createServer();
+        server.unref();
+        server.on('error', () => {
+            // Port is in use, try the next one
+            resolve(getAvailablePort(port + 1));
+        });
+        server.listen(port, () => {
+            const { port: availablePort } = server.address();
+            server.close(() => {
+                resolve(availablePort);
+            });
+        });
+    });
+};
+
 // Start the server
 const startServer = async () => {
     try {
         await connectDB();
         
-        const PORT = process.env.PORT || 10000;
-        app.listen(PORT, () => {
-            console.log(`🚀 Server is running on port ${PORT}`);
+        const DEFAULT_PORT = 10000;
+        const port = process.env.PORT || DEFAULT_PORT;
+        
+        // Get an available port
+        const availablePort = await getAvailablePort(port);
+        
+        const server = app.listen(availablePort, () => {
+            console.log(`🚀 Server is running on port ${availablePort}`);
+            console.log(`🌐 Health check: http://localhost:${availablePort}/api/auth/health`);
         });
+        
+        // Handle server errors
+        server.on('error', (error) => {
+            if (error.code === 'EADDRINUSE') {
+                console.warn(`⚠️  Port ${availablePort} is in use, trying next port...`);
+                // Try the next port
+                server.close();
+                startServer(availablePort + 1);
+            } else {
+                console.error('❌ Server error:', error);
+                process.exit(1);
+            }
+        });
+        
+        // Handle process termination
+        process.on('SIGTERM', () => {
+            console.log('SIGTERM received. Shutting down gracefully...');
+            server.close(() => {
+                console.log('Server closed');
+                process.exit(0);
+            });
+        });
+        
     } catch (error) {
         console.error('❌ Failed to start server:', error);
         process.exit(1);
