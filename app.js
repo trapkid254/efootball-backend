@@ -246,16 +246,37 @@ const connectDB = async () => {
 // Function to get an available port
 const getAvailablePort = async (port) => {
     const net = require('net');
+    const MAX_PORT = 65535;
+    
+    // Ensure port is a number and within valid range
+    port = Number(port);
+    if (isNaN(port) || port < 0 || port > MAX_PORT) {
+        port = 10000; // Reset to default if invalid
+    }
+    
     return new Promise((resolve, reject) => {
+        // If we've reached the maximum port number, reject with an error
+        if (port > MAX_PORT) {
+            return reject(new Error(`No available ports found (tried up to port ${port - 1})`));
+        }
+        
         const server = net.createServer();
         server.unref();
-        server.on('error', () => {
-            // Port is in use, try the next one
-            resolve(getAvailablePort(port + 1));
+        
+        server.on('error', (err) => {
+            if (err.code === 'EADDRINUSE') {
+                // Port is in use, try the next one
+                console.log(`Port ${port} is in use, trying ${port + 1}...`);
+                return resolve(getAvailablePort(port + 1));
+            }
+            // For other errors, reject the promise
+            reject(err);
         });
-        server.listen(port, () => {
+        
+        server.listen(port, '0.0.0.0', () => {
             const { port: availablePort } = server.address();
             server.close(() => {
+                console.log(`Found available port: ${availablePort}`);
                 resolve(availablePort);
             });
         });
