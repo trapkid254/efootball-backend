@@ -96,7 +96,28 @@ userSchema.pre('save', async function(next) {
 
 // Method to compare password
 userSchema.methods.comparePassword = async function(candidatePassword) {
-    return await bcrypt.compare(candidatePassword, this.password);
+    try {
+        console.log('Comparing passwords...');
+        console.log('Candidate password length:', candidatePassword ? candidatePassword.length : 'undefined');
+        console.log('Stored password hash exists:', !!this.password);
+        
+        if (!candidatePassword) {
+            console.error('No candidate password provided');
+            return false;
+        }
+        
+        if (!this.password) {
+            console.error('No stored password hash found for user');
+            return false;
+        }
+        
+        const isMatch = await bcrypt.compare(candidatePassword, this.password);
+        console.log('Password comparison result:', isMatch);
+        return isMatch;
+    } catch (error) {
+        console.error('Error comparing passwords:', error);
+        return false;
+    }
 };
 
 // Method to get public profile (exclude sensitive data)

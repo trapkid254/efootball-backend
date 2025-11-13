@@ -332,11 +332,23 @@ router.post('/login', async (req, res) => {
         }
 
         // Check password
+        console.log('Attempting to verify password...');
         const isPasswordValid = await user.comparePassword(password);
+        console.log('Password validation result:', isPasswordValid);
+        
         if (!isPasswordValid) {
+            console.log('Password validation failed for user:', {
+                userId: user._id,
+                whatsapp: user.whatsapp,
+                efootballId: user.efootballId,
+                hasPassword: !!user.password,
+                passwordLength: user.password ? user.password.length : 0
+            });
             return res.status(401).json({
                 success: false,
-                message: 'Invalid credentials'
+                message: 'Invalid credentials',
+                errorType: 'INVALID_CREDENTIALS',
+                details: 'The provided password is incorrect.'
             });
         }
 
