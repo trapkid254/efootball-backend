@@ -241,6 +241,24 @@ router.post('/login', async (req, res) => {
         if (whatsapp) {
             const cleanWhatsapp = whatsapp.toString().trim();
             console.log('Looking for user with whatsapp:', cleanWhatsapp);
+            
+            // Handle both formats of the phone number
+            let normalizedWhatsapp = cleanWhatsapp;
+            
+            // If number starts with 0, also try with 254 (Kenya country code)
+            if (cleanWhatsapp.startsWith('0') && cleanWhatsapp.length === 10) {
+                const withCountryCode = '254' + cleanWhatsapp.substring(1);
+                console.log('Also trying with country code:', withCountryCode);
+                queryConditions.push({ whatsapp: withCountryCode });
+            }
+            // If number starts with 254, also try with 0 (local format)
+            else if (cleanWhatsapp.startsWith('254') && cleanWhatsapp.length === 12) {
+                const localFormat = '0' + cleanWhatsapp.substring(3);
+                console.log('Also trying local format:', localFormat);
+                queryConditions.push({ whatsapp: localFormat });
+            }
+            
+            // Always try the exact match as well
             queryConditions.push({ whatsapp: cleanWhatsapp });
         }
         
