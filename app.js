@@ -151,6 +151,7 @@ app.use(helmet());
 // CORS configuration
 const allowedOrigins = [
     'https://tonakikwetu.netlify.app',
+    'https://tonakikwetu.netlify.app/',
     'http://localhost:3000',
     'http://localhost:5500',
     'http://127.0.0.1:5500',
@@ -162,31 +163,34 @@ const allowedOrigins = [
 // Log allowed origins for debugging
 console.log('Allowed CORS origins:', allowedOrigins);
 
-// CORS middleware with detailed logging
-app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    console.log(`Incoming ${req.method} request from origin: ${origin}`);
-    
-    // Set CORS headers for all responses
-    if (origin && allowedOrigins.includes(origin)) {
-        res.header('Access-Control-Allow-Origin', origin);
-        res.header('Access-Control-Allow-Credentials', 'true');
-        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-        res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Authorization');
+// Configure CORS with more permissive settings
+const corsOptions = {
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
         
-        // Handle preflight requests
-        if (req.method === 'OPTIONS') {
-            return res.status(200).end();
+        // Check if the origin is in the allowed list
+        if (allowedOrigins.includes(origin) || 
+            allowedOrigins.some(allowed => origin.startsWith(allowed.replace(/\/$/, '')))) {
+            console.log(`✅ Allowed CORS for origin: ${origin}`);
+            return callback(null, true);
         }
         
-        return next();
-    }
-    
-    // Log blocked requests
-    console.warn('CORS blocked request from origin:', origin);
-    res.status(403).json({ error: 'Not allowed by CORS' });
-});
+        console.warn(`❌ CORS blocked request from origin: ${origin}`);
+        return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Content-Length', 'Content-Type', 'Authorization'],
+    maxAge: 600  // Cache preflight request for 10 minutes
+};
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
 
 // Rate limiting
 const limiter = rateLimit({
