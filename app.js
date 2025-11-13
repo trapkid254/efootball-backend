@@ -198,9 +198,6 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 
-// Apply CORS to all routes
-app.use(cors(corsOptions));
-
 // Serve static files with CORS headers
 app.use('/uploads', (req, res, next) => {
     // Set CORS headers for all responses from /uploads
