@@ -151,7 +151,6 @@ app.use(helmet());
 // CORS configuration
 const allowedOrigins = [
     'https://tonakikwetu.netlify.app',
-    'https://tonakikwetu.netlify.app/',
     'http://localhost:3000',
     'http://localhost:5500',
     'http://127.0.0.1:5500',
@@ -169,9 +168,15 @@ const corsOptions = {
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
         
+        // Normalize origin by removing trailing slashes
+        const normalizedOrigin = origin.endsWith('/') ? origin.slice(0, -1) : origin;
+        
         // Check if the origin is in the allowed list
-        if (allowedOrigins.includes(origin) || 
-            allowedOrigins.some(allowed => origin.startsWith(allowed.replace(/\/$/, '')))) {
+        if (allowedOrigins.some(allowed => {
+            const normalizedAllowed = allowed.endsWith('/') ? allowed.slice(0, -1) : allowed;
+            return normalizedOrigin === normalizedAllowed || 
+                   normalizedOrigin.startsWith(normalizedAllowed);
+        })) {
             console.log(`✅ Allowed CORS for origin: ${origin}`);
             return callback(null, true);
         }
@@ -183,10 +188,13 @@ const corsOptions = {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     exposedHeaders: ['Content-Length', 'Content-Type', 'Authorization'],
-    maxAge: 600  // Cache preflight request for 10 minutes
+    maxAge: 600,  // Cache preflight request for 10 minutes
+    preflightContinue: false,
+    optionsSuccessStatus: 204
 };
 
-// Apply CORS middleware
+// Apply CORS middleware with preflight
+app.options('*', cors(corsOptions)); // Enable preflight for all routes
 app.use(cors(corsOptions));
 
 // Handle preflight requests
