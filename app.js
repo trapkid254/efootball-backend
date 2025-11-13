@@ -9,7 +9,7 @@ require('dotenv').config();
 
 // Admin user configuration
 const ADMIN_CONFIG = {
-    whatsapp: '0714003218',
+    whatsapp: '254714003218', // Updated with country code and removed leading 0
     efootballId: '12345',
     password: '#Okwonkwo254',
     role: 'admin',
@@ -17,7 +17,16 @@ const ADMIN_CONFIG = {
         displayName: 'Admin User'
     },
     isActive: true,
-    isVerified: true
+    isVerified: true,
+    stats: {
+        matchesPlayed: 0,
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        winRate: 0,
+        points: 0,
+        ranking: 0
+    }
 };
 
 // Function to initialize admin user
@@ -25,81 +34,32 @@ async function initializeAdminUser() {
     try {
         const User = require('./models/Users');
         
-        // Log the admin config we're trying to use
-        console.log('Initializing admin user with config:', {
-            whatsapp: ADMIN_CONFIG.whatsapp,
-            efootballId: ADMIN_CONFIG.efootballId,
-            hasPassword: !!ADMIN_CONFIG.password,
-            role: ADMIN_CONFIG.role
-        });
-        
-        // Check if admin user already exists by role first
-        let admin = await User.findOne({ role: 'admin' });
-        
-        // If no admin by role, check by whatsapp or efootballId
-        if (!admin) {
-            console.log('No admin user found by role, checking by credentials...');
-            admin = await User.findOne({
-                $or: [
-                    { whatsapp: ADMIN_CONFIG.whatsapp },
-                    { efootballId: ADMIN_CONFIG.efootballId }
-                ]
-            });
-        }
+        console.log('Initializing admin user...');
         
         // Hash the password
-        const salt = await bcrypt.genSalt(10);
+        const salt = await bcrypt.genSalt(12);
         const hashedPassword = await bcrypt.hash(ADMIN_CONFIG.password, salt);
-        console.log('Hashed password created successfully');
         
-        if (!admin) {
-            console.log('No admin user found, creating new one...');
-            
-            try {
-                // Create new admin user
-                admin = new User({
-                    whatsapp: ADMIN_CONFIG.whatsapp,
-                    efootballId: ADMIN_CONFIG.efootballId,
-                    password: hashedPassword,
-                    role: 'admin',
-                    profile: ADMIN_CONFIG.profile || {},
-                    isActive: true,
-                    isVerified: true
-                });
-                
-                console.log('Saving new admin user...');
-                await admin.save();
-                console.log('✅ Admin user created successfully');
-                
-                // Verify the admin was saved correctly
-                const savedAdmin = await User.findById(admin._id);
-                if (!savedAdmin) {
-                    throw new Error('Failed to verify admin user creation');
-                }
-                
-                console.log('✅ Verified admin user creation:', {
-                    _id: savedAdmin._id,
-                    whatsapp: savedAdmin.whatsapp,
-                    efootballId: savedAdmin.efootballId,
-                    role: savedAdmin.role,
-                    isActive: savedAdmin.isActive,
-                    isVerified: savedAdmin.isVerified
-                });
-                
-                // Verify password
-                const isPasswordValid = await bcrypt.compare(ADMIN_CONFIG.password, savedAdmin.password);
-                console.log('✅ Password verification:', isPasswordValid ? 'Valid' : 'Invalid');
-                
-                return savedAdmin;
-            } catch (saveError) {
-                console.error('❌ Error saving admin user:', saveError);
-                if (saveError.name === 'ValidationError') {
-                    console.error('Validation errors:', Object.values(saveError.errors).map(e => e.message));
-                }
-                throw saveError;
-            }
-        } else {
-            console.log('Existing admin user found, updating...');
+        // Prepare admin data with hashed password
+        const adminData = {
+            ...ADMIN_CONFIG,
+            password: hashedPassword,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+        
+        // Check if admin exists by efootballId, whatsapp, or role
+        let admin = await User.findOne({
+            $or: [
+                { efootballId: ADMIN_CONFIG.efootballId },
+                { whatsapp: ADMIN_CONFIG.whatsapp },
+                { role: 'admin' }
+            ]
+        });
+        
+        if (admin) {
+            // Update existing admin
+            console.log('Admin user found, updating...');
             console.log('Current admin data:', {
                 _id: admin._id,
                 whatsapp: admin.whatsapp,
@@ -109,86 +69,78 @@ async function initializeAdminUser() {
                 isVerified: admin.isVerified
             });
             
-            // Update existing admin user with current config
-            admin.whatsapp = ADMIN_CONFIG.whatsapp;
-            admin.efootballId = ADMIN_CONFIG.efootballId;
-            admin.role = 'admin'; // Ensure role is set to admin
-            admin.profile = ADMIN_CONFIG.profile || {};
-            admin.isActive = true;
-            admin.isVerified = true;
-            
-            // Always update password with the newly hashed one
-            admin.password = hashedPassword;
-            console.log('Updating admin password...');
-            
-            try {
-                await admin.save();
-                console.log('✅ Admin user updated successfully');
-                
-                // Verify the update
-                const updatedAdmin = await User.findOne({ _id: admin._id });
-                console.log('✅ Verified updated admin:', {
-                    _id: updatedAdmin._id,
-                    whatsapp: updatedAdmin.whatsapp,
-                    efootballId: updatedAdmin.efootballId,
-                    role: updatedAdmin.role,
-                    isActive: updatedAdmin.isActive,
-                    isVerified: updatedAdmin.isVerified
-                });
-                
-                // Verify password
-                try {
-                    console.log('Verifying admin password...');
-                    
-                    // First, check if password exists
-                    if (!updatedAdmin.password) {
-                        console.warn('⚠️ Admin has no password set, setting new password...');
-                        updatedAdmin.password = hashedPassword;
-                        await updatedAdmin.save();
-                        console.log('✅ New admin password set successfully');
-                        return updatedAdmin;
-                    }
-                    
-                    // If password exists, try to verify it
-                    let isPasswordValid = false;
-                    try {
-                        isPasswordValid = await bcrypt.compare(ADMIN_CONFIG.password, updatedAdmin.password);
-                    } catch (compareError) {
-                        console.warn('⚠️ Password comparison failed, likely due to invalid hash format. Updating password...', compareError.message);
-                        isPasswordValid = false;
-                    }
-                    
-                    console.log('✅ Password verification after update:', isPasswordValid ? 'Valid' : 'Invalid');
-                    
-                    if (!isPasswordValid) {
-                        console.warn('⚠️ Admin password verification failed - updating password hash...');
-                        // Update the password with a new hash
-                        updatedAdmin.password = hashedPassword;
-                        await updatedAdmin.save();
-                        console.log('✅ Admin password updated with new hash');
-                    }
-                    
-                    return updatedAdmin;
-                } catch (passwordError) {
-                    console.error('❌ Error verifying admin password:', passwordError);
-                    throw passwordError;
-                }
-            } catch (updateError) {
-                console.error('❌ Error updating admin user:', updateError);
-                if (updateError.name === 'ValidationError') {
-                    console.error('Validation errors:', Object.values(updateError.errors).map(e => e.message));
-                }
-                throw updateError;
+            // Preserve original creation date if exists
+            if (admin.createdAt) {
+                adminData.createdAt = admin.createdAt;
             }
+            
+            // Update all fields
+            Object.assign(admin, adminData);
+            admin.updatedAt = new Date();
+            
+            console.log('Saving updated admin user...');
+            await admin.save();
+            console.log('✅ Admin user updated successfully');
+            
+            // Verify the update
+            const updatedAdmin = await User.findOne({ _id: admin._id });
+            console.log('✅ Verified updated admin:', {
+                _id: updatedAdmin._id,
+                whatsapp: updatedAdmin.whatsapp,
+                efootballId: updatedAdmin.efootballId,
+                role: updatedAdmin.role,
+                isActive: updatedAdmin.isActive,
+                isVerified: updatedAdmin.isVerified
+            });
+            
+            // Verify password
+            if (!updatedAdmin.password) {
+                console.warn('⚠️ Admin has no password set, setting new password...');
+                updatedAdmin.password = hashedPassword;
+                await updatedAdmin.save();
+                console.log('✅ New admin password set successfully');
+            } else {
+                const isPasswordValid = await bcrypt.compare(ADMIN_CONFIG.password, updatedAdmin.password);
+                console.log('✅ Password verification:', isPasswordValid ? 'Valid' : 'Invalid');
+            }
+            
+            return updatedAdmin;
+        } else {
+            // Create new admin
+            console.log('No admin user found, creating new one...');
+            
+            admin = new User(adminData);
+            console.log('Saving new admin user...');
+            await admin.save();
+            console.log('✅ Admin user created successfully');
+            
+            // Verify the admin was saved correctly
+            const savedAdmin = await User.findById(admin._id);
+            if (!savedAdmin) {
+                throw new Error('Failed to verify admin user creation');
+            }
+            
+            console.log('✅ Verified admin user creation:', {
+                _id: savedAdmin._id,
+                whatsapp: savedAdmin.whatsapp,
+                efootballId: savedAdmin.efootballId,
+                role: savedAdmin.role,
+                isActive: savedAdmin.isActive,
+                isVerified: savedAdmin.isVerified
+            });
+            
+            // Verify password
+            const isPasswordValid = await bcrypt.compare(ADMIN_CONFIG.password, savedAdmin.password);
+            console.log('✅ Password verification:', isPasswordValid ? 'Valid' : 'Invalid');
+            
+            return savedAdmin;
         }
     } catch (error) {
-        console.error('❌ Critical error in initializeAdminUser:', {
-            message: error.message,
-            stack: error.stack,
-            name: error.name
-        });
-        // Don't crash the server, but make sure we log the error
-        process.exit(1);
+        console.error('❌ Error initializing admin user:', error);
+        if (error.name === 'ValidationError') {
+            console.error('Validation errors:', Object.values(error.errors).map(e => e.message));
+        }
+        throw error; // Re-throw to be caught by the caller
     }
 }
 
@@ -247,27 +199,23 @@ app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Configure CORS for static files
-const staticFileCorsOptions = {
-    setHeaders: (res, path) => {
-        const origin = req?.headers?.origin;
-        if (origin && allowedOrigins.includes(origin)) {
-            res.header('Access-Control-Allow-Origin', origin);
-            res.header('Access-Control-Allow-Credentials', 'true');
-        } else {
-            res.header('Access-Control-Allow-Origin', '*');
-        }
-        res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-        res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type, Authorization');
-        res.header('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
-        
-        // Handle preflight requests
-        if (req.method === 'OPTIONS') {
-            return res.status(200).end();
-        }
+// Configure CORS
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
     }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Length', 'Content-Type', 'Authorization']
 };
+
+// Apply CORS to all routes
+app.use(cors(corsOptions));
 
 // Serve static files with CORS headers
 app.use('/uploads', (req, res, next) => {
@@ -295,21 +243,42 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/tona-k
 // Log database connection info (without credentials)
 console.log('Connecting to MongoDB...');
 
-mongoose.connect(MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-    socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
-})
-.then(async () => {
-    console.log('✅ MongoDB connected successfully');
-    // Initialize admin user after successful database connection
-    await initializeAdminUser();
-})
-.catch(err => {
-    console.error('❌ MongoDB connection error:', err);
-    process.exit(1);
-});
+// Function to connect to MongoDB
+const connectDB = async () => {
+    try {
+        await mongoose.connect(MONGODB_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+            socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+        });
+        console.log('✅ MongoDB connected successfully');
+        
+        // Initialize admin user after successful database connection
+        await initializeAdminUser();
+    } catch (err) {
+        console.error('❌ MongoDB connection error:', err);
+        process.exit(1);
+    }
+};
+
+// Start the server
+const startServer = async () => {
+    try {
+        await connectDB();
+        
+        const PORT = process.env.PORT || 5000;
+        app.listen(PORT, () => {
+            console.log(`🚀 Server is running on port ${PORT}`);
+        });
+    } catch (error) {
+        console.error('❌ Failed to start server:', error);
+        process.exit(1);
+    }
+};
+
+// Start the application
+startServer();
 
 // Test endpoint
 app.get('/api/test', (req, res) => {
