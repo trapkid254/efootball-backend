@@ -4,13 +4,12 @@ const Match = require('../models/Match');
 const User = require('../models/Users');
 const Payment = require('../models/Payment');
 const Leaderboard = require('../models/Leaderboard');
-const adminAuth = require('../middleware/adminAuth');
 const router = express.Router();
 
 // @route   GET /api/admin/dashboard
 // @desc    Get admin dashboard statistics
-// @access  Private (Admin)
-router.get('/dashboard', adminAuth, async (req, res) => {
+// @access  Public (Temporary - Remove in production)
+router.get('/dashboard', async (req, res) => {
     try {
         // Get total counts
         const totalPlayers = await User.countDocuments({ role: 'player' });
@@ -81,8 +80,8 @@ router.get('/dashboard', adminAuth, async (req, res) => {
 
 // @route   GET /api/admin/tournaments
 // @desc    Get all tournaments for admin
-// @access  Private (Admin)
-router.get('/tournaments', adminAuth, async (req, res) => {
+// @access  Public (Temporary - Remove in production)
+router.get('/tournaments', async (req, res) => {
     try {
         const { page = 1, limit = 10, status } = req.query;
         const skip = (page - 1) * limit;
@@ -124,8 +123,8 @@ router.get('/tournaments', adminAuth, async (req, res) => {
 
 // @route   GET /api/admin/matches/pending
 // @desc    Get pending matches for verification
-// @access  Private (Admin)
-router.get('/matches/pending', adminAuth, async (req, res) => {
+// @access  Public (Temporary - Remove in production)
+router.get('/matches/pending', async (req, res) => {
     try {
         const matches = await Match.find({
             status: { $in: ['disputed', 'completed'] },
@@ -152,8 +151,8 @@ router.get('/matches/pending', adminAuth, async (req, res) => {
 
 // @route   POST /api/admin/matches/:id/verify
 // @desc    Verify match result
-// @access  Private (Admin)
-router.post('/matches/:id/verify', adminAuth, async (req, res) => {
+// @access  Public (Temporary - Remove in production)
+router.post('/matches/:id/verify', async (req, res) => {
     try {
         const match = await Match.findById(req.params.id);
         
@@ -208,8 +207,8 @@ router.post('/matches/:id/verify', adminAuth, async (req, res) => {
 
 // @route   GET /api/admin/payments
 // @desc    Get all payments
-// @access  Private (Admin)
-router.get('/payments', adminAuth, async (req, res) => {
+// @access  Public (Temporary - Remove in production)
+router.get('/payments', async (req, res) => {
     try {
         const { page = 1, limit = 20, status } = req.query;
         const skip = (page - 1) * limit;
@@ -263,8 +262,8 @@ router.get('/payments', adminAuth, async (req, res) => {
 
 // @route   POST /api/admin/payments/:id/process
 // @desc    Manually process payment
-// @access  Private (Admin)
-router.post('/payments/:id/process', adminAuth, async (req, res) => {
+// @access  Public (Temporary - Remove in production)
+router.post('/payments/:id/process', async (req, res) => {
     try {
         const payment = await Payment.findById(req.params.id);
         

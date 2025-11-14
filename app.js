@@ -369,6 +369,9 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/activity', require('./routes/activity'));
 
+// Temporary admin routes (unsecured - for development only)
+app.use('/api/temp-admin', require('./routes/tempAdmin'));
+
 // Health check route
 app.get('/api/health', (req, res) => {
     res.json({ 
