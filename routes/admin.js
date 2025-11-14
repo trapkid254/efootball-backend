@@ -308,8 +308,8 @@ router.post('/payments/:id/process', async (req, res) => {
 
 // @route   GET /api/admin/analytics
 // @desc    Get analytics data
-// @access  Private (Admin)
-router.get('/analytics', adminAuth, async (req, res) => {
+// @access  Public (Temporary - Remove in production)
+router.get('/analytics', async (req, res) => {
     try {
         // User growth over time
         const userGrowth = await User.aggregate([
@@ -390,8 +390,8 @@ router.get('/analytics', adminAuth, async (req, res) => {
 
 // @route   POST /api/admin/system/maintenance
 // @desc    Toggle maintenance mode
-// @access  Private (Admin)
-router.post('/system/maintenance', adminAuth, async (req, res) => {
+// @access  Public (Temporary - Remove in production)
+router.post('/system/maintenance', async (req, res) => {
     try {
         const { enabled, message } = req.body;
         
