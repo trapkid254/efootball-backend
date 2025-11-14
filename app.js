@@ -7,27 +7,43 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 require('dotenv').config();
 
-// Admin user configuration
+// Demo Admin Configuration
 const ADMIN_CONFIG = {
-    whatsapp: '254714003218', // Updated with country code and removed leading 0
-    efootballId: '12345',
-    password: '#Okwonkwo254',
+    whatsapp: '254714003218', // Demo WhatsApp number
+    efootballId: 'DEMO123',   // Demo Efootball ID
+    password: 'Demo@Tona2023', // Demo password (will be hashed)
     role: 'admin',
     profile: {
-        displayName: 'Admin User'
+        displayName: 'Demo Admin',
+        email: 'demo@tonakikwetu.com'
     },
     isActive: true,
     isVerified: true,
+    isDemo: true,  // Mark as demo account
     stats: {
         matchesPlayed: 0,
         wins: 0,
         losses: 0,
         draws: 0,
         winRate: 0,
-        points: 0,
-        ranking: 0
+        points: 1000,  // Starting points for demo
+        ranking: 1     #1 in demo
     }
 };
+
+// Log demo admin credentials (for development/demo only)
+console.log('\n🚀 DEMO ADMIN CREDENTIALS 🚀');
+console.log('==========================');
+console.log(`📱 WhatsApp: ${ADMIN_CONFIG.whatsapp}`);
+console.log(`🎮 Efootball ID: ${ADMIN_CONFIG.efootballId}`);
+console.log(`🔑 Password: ${ADMIN_CONFIG.password}`);
+console.log('==========================\n');
+
+// Security note for production
+if (process.env.NODE_ENV === 'production') {
+    console.warn('⚠️  WARNING: Running with demo admin credentials in production!');
+    console.warn('   Please ensure you change these credentials before going live.\n');
+}
 
 // Function to initialize admin user
 async function initializeAdminUser() {
