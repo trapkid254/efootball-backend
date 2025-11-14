@@ -11,7 +11,7 @@ require('dotenv').config();
 const ADMIN_CONFIG = {
     whatsapp: '254714003218', // Demo WhatsApp number
     efootballId: 'DEMO123',   // Demo Efootball ID
-    password: 'Demo@Tona2023', // Demo password (will be hashed)
+    password: 'demo123',      // Simple demo password
     role: 'admin',
     profile: {
         displayName: 'Demo Admin',
@@ -27,7 +27,7 @@ const ADMIN_CONFIG = {
         draws: 0,
         winRate: 0,
         points: 1000,  // Starting points for demo
-        ranking: 1     #1 in demo
+        ranking: 1     // Ranked first in demo
     }
 };
 
