@@ -6,10 +6,11 @@ class TournamentController {
     // Create new tournament
     static async createTournament(req, res) {
         try {
-            const tournamentData = {
-                ...req.body,
-                organizer: req.user.id
-            };
+            // Only set organizer if user is authenticated
+            const tournamentData = { ...req.body };
+            if (req.user && req.user.id) {
+                tournamentData.organizer = req.user.id;
+            }
 
             const tournament = new Tournament(tournamentData);
             await tournament.save();
