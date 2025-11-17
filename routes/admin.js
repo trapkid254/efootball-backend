@@ -83,13 +83,25 @@ router.get('/dashboard', async (req, res) => {
 // @access  Public (Temporary - Remove in production)
 router.get('/tournaments', async (req, res) => {
     try {
+        console.log('🔍 Admin tournaments endpoint called');
+        console.log('Request headers:', {
+            origin: req.headers.origin,
+            userAgent: req.headers['user-agent']?.substring(0, 50)
+        });
         const { page = 1, limit = 10, status } = req.query;
+        console.log('Query params:', { page, limit, status });
+
         const skip = (page - 1) * limit;
 
         const query = {};
         if (status && status !== 'all') {
             query.status = status;
         }
+        console.log('MongoDB query:', query);
+
+        // First, let's count all tournaments without any filter to debug
+        const totalTournaments = await Tournament.countDocuments();
+        console.log('Total tournaments in database:', totalTournaments);
 
         const tournaments = await Tournament.find(query)
             .populate('organizer', 'efootballId profile')
@@ -98,7 +110,11 @@ router.get('/tournaments', async (req, res) => {
             .skip(skip)
             .limit(parseInt(limit));
 
+        console.log('Found tournaments:', tournaments.length);
+        console.log('Tournament IDs:', tournaments.map(t => ({ id: t._id, name: t.name, status: t.status })));
+
         const total = await Tournament.countDocuments(query);
+        console.log('Filtered total:', total);
 
         res.json({
             success: true,
@@ -113,6 +129,7 @@ router.get('/tournaments', async (req, res) => {
 
     } catch (error) {
         console.error('Admin tournaments error:', error);
+        console.error('Error stack:', error.stack);
         res.status(500).json({
             success: false,
             message: 'Failed to fetch tournaments',
