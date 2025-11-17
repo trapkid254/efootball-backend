@@ -6,15 +6,23 @@ class TournamentController {
     // Create new tournament
     static async createTournament(req, res) {
         try {
+            console.log('Creating tournament with data:', req.body);
+
             // Only set organizer if user is authenticated
             const tournamentData = { ...req.body };
             if (req.user && req.user.id) {
                 tournamentData.organizer = req.user.id;
             }
 
+            console.log('Final tournament data:', tournamentData);
+
             const tournament = new Tournament(tournamentData);
             await tournament.save();
+            console.log('Tournament saved to database with ID:', tournament._id);
+
             await tournament.populate('organizer', 'efootballId profile');
+
+            console.log('Tournament created successfully:', tournament.name);
 
             res.status(201).json({
                 success: true,
@@ -24,6 +32,7 @@ class TournamentController {
 
         } catch (error) {
             console.error('Create tournament error:', error);
+            console.error('Error details:', error.stack);
             res.status(500).json({
                 success: false,
                 message: 'Failed to create tournament',
