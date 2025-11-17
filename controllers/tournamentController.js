@@ -62,8 +62,12 @@ class TournamentController {
                 query.format = format;
             }
 
-            // Only show public tournaments to non-admins
-            if (!req.user || req.user.role !== 'admin') {
+            // For admin interface, show all tournaments regardless of isPublic status
+            // Check if the request is coming from the admin interface
+            const isAdminRequest = req.headers.referer && req.headers.referer.includes('admin');
+            
+            // Only apply public filter for non-admin requests
+            if ((!req.user || req.user.role !== 'admin') && !isAdminRequest) {
                 query.isPublic = true;
             }
 
