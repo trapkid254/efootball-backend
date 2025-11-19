@@ -4,6 +4,7 @@ const Match = require('../models/Match');
 const User = require('../models/Users');
 const Payment = require('../models/Payment');
 const Leaderboard = require('../models/Leaderboard');
+const adminAuth = require('../middleware/adminAuth');
 const router = express.Router();
 
 // @route   GET /api/admin/dashboard
@@ -133,6 +134,152 @@ router.get('/tournaments', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to fetch tournaments',
+            error: error.message
+        });
+    }
+});
+
+// @route   GET /api/admin/tournaments/:id
+// @desc    Get single tournament with participants and matches
+// @access  Private (Admin)
+router.get('/tournaments/:id', adminAuth, async (req, res) => {
+    try {
+        const tournament = await Tournament.findById(req.params.id)
+            .populate('organizer', 'efootballId profile')
+            .populate('participants.player', 'efootballId profile stats');
+
+        if (!tournament) {
+            return res.status(404).json({
+                success: false,
+                message: 'Tournament not found'
+            });
+        }
+
+        const matches = await Match.find({ tournament: tournament._id })
+            .populate('player1.user player2.user', 'efootballId profile')
+            .sort({ matchNumber: 1, createdAt: 1 });
+
+        res.json({
+            success: true,
+            tournament,
+            matches
+        });
+    } catch (error) {
+        console.error('Admin get tournament error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch tournament details',
+            error: error.message
+        });
+    }
+});
+
+// @route   DELETE /api/admin/tournaments/:id/participants/:participantId
+// @desc    Remove participant from tournament
+// @access  Private (Admin)
+router.delete('/tournaments/:id/participants/:participantId', adminAuth, async (req, res) => {
+    try {
+        const tournament = await Tournament.findById(req.params.id)
+            .populate('participants.player', 'efootballId profile stats');
+
+        if (!tournament) {
+            return res.status(404).json({
+                success: false,
+                message: 'Tournament not found'
+            });
+        }
+
+        const { participantId } = req.params;
+        const participantIndex = tournament.participants.findIndex(p =>
+            p._id?.toString() === participantId ||
+            p.player?.toString() === participantId
+        );
+
+        if (participantIndex === -1) {
+            return res.status(404).json({
+                success: false,
+                message: 'Participant not found in this tournament'
+            });
+        }
+
+        const removed = tournament.participants.splice(participantIndex, 1)[0];
+        await tournament.save();
+        await tournament.populate('participants.player', 'efootballId profile stats');
+
+        res.json({
+            success: true,
+            message: `${removed.player?.efootballId || 'Participant'} removed successfully`,
+            tournament
+        });
+    } catch (error) {
+        console.error('Remove participant error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to remove participant',
+            error: error.message
+        });
+    }
+});
+
+// @route   POST /api/admin/matches/:id/result
+// @desc    Manually record/override a match result
+// @access  Private (Admin)
+router.post('/matches/:id/result', adminAuth, async (req, res) => {
+    try {
+        const match = await Match.findById(req.params.id)
+            .populate('player1.user player2.user', 'efootballId profile');
+
+        if (!match) {
+            return res.status(404).json({
+                success: false,
+                message: 'Match not found'
+            });
+        }
+
+        const { player1Score, player2Score, notes } = req.body;
+
+        if (player1Score === undefined || player2Score === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: 'Both player scores are required'
+            });
+        }
+
+        match.player1.score = parseInt(player1Score, 10);
+        match.player2.score = parseInt(player2Score, 10);
+        match.player1.confirmed = true;
+        match.player2.confirmed = true;
+
+        match.result.isDraw = match.player1.score === match.player2.score;
+        match.result.winner = null;
+        match.result.loser = null;
+
+        if (!match.result.isDraw) {
+            const player1Wins = match.player1.score > match.player2.score;
+            match.result.winner = player1Wins ? match.player1.user : match.player2.user;
+            match.result.loser = player1Wins ? match.player2.user : match.player1.user;
+        }
+
+        match.result.winnerScore = Math.max(match.player1.score, match.player2.score);
+        match.result.loserScore = Math.min(match.player1.score, match.player2.score);
+        match.result.confirmedBy = req.user?.id || null;
+        match.result.confirmedAt = new Date();
+        match.adminNotes = notes || match.adminNotes;
+        match.status = 'completed';
+
+        await match.save();
+        await match.populate('player1.user player2.user', 'efootballId profile');
+
+        res.json({
+            success: true,
+            message: 'Match result recorded successfully',
+            match
+        });
+    } catch (error) {
+        console.error('Admin record result error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to record match result',
             error: error.message
         });
     }
