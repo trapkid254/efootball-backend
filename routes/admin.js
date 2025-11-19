@@ -512,6 +512,103 @@ router.get('/users', async (req, res) => {
     }
 });
 
+// @route   GET /api/admin/dashboard
+// @desc    Get dashboard data with stats and recent activity
+// @access  Private (Admin)
+router.get('/dashboard', adminAuth, async (req, res) => {
+    try {
+        // Get stats
+        const totalPlayers = await User.countDocuments({ role: 'player' });
+        const activeTournaments = await Tournament.countDocuments({
+            status: { $in: ['upcoming', 'active'] }
+        });
+        const pendingMatches = await Match.countDocuments({
+            status: { $in: ['disputed', 'completed'] },
+            'result.confirmedBy': null
+        });
+
+        // Calculate total revenue from completed payments
+        const totalRevenueResult = await Payment.aggregate([
+            { $match: { status: 'completed' } },
+            { $group: { _id: null, total: { $sum: '$amount' } } }
+        ]);
+        const totalRevenue = totalRevenueResult.length > 0 ? totalRevenueResult[0].total : 0;
+
+        // Get recent activity (last 50 items)
+        const recentTournaments = await Tournament.find({})
+            .select('name createdAt organizer')
+            .populate('organizer', 'efootballId')
+            .sort({ createdAt: -1 })
+            .limit(20);
+
+        const recentMatches = await Match.find({})
+            .select('createdAt player1 player2 status tournament')
+            .populate('player1.user player2.user', 'efootballId')
+            .populate('tournament', 'name')
+            .sort({ createdAt: -1 })
+            .limit(20);
+
+        const recentRegistrations = await Tournament.aggregate([
+            { $unwind: '$participants' },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'participants.player',
+                    foreignField: '_id',
+                    as: 'playerInfo'
+                }
+            },
+            { $unwind: '$playerInfo' },
+            {
+                $project: {
+                    tournamentName: '$name',
+                    playerId: '$playerInfo.efootballId',
+                    registeredAt: '$participants.joinedAt'
+                }
+            },
+            { $sort: { 'participants.joinedAt': -1 } },
+            { $limit: 20 }
+        ]);
+
+        res.json({
+            success: true,
+            stats: {
+                totalPlayers,
+                activeTournaments,
+                pendingMatches,
+                totalRevenue
+            },
+            recentActivity: {
+                tournaments: recentTournaments.map(t => ({
+                    name: t.name,
+                    createdAt: t.createdAt,
+                    organizer: t.organizer
+                })),
+                matches: recentMatches.map(m => ({
+                    createdAt: m.createdAt,
+                    player1: m.player1,
+                    player2: m.player2,
+                    status: m.status,
+                    tournament: m.tournament
+                })),
+                registrations: recentRegistrations.map(r => ({
+                    createdAt: r.registeredAt,
+                    efootballId: r.playerId,
+                    tournamentName: r.tournamentName
+                }))
+            }
+        });
+
+    } catch (error) {
+        console.error('Admin dashboard error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch dashboard data',
+            error: error.message
+        });
+    }
+});
+
 // @route   GET /api/admin/analytics
 // @desc    Get analytics data
 // @access  Public (Temporary - Remove in production)
