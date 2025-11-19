@@ -470,6 +470,48 @@ router.post('/payments/:id/process', async (req, res) => {
     }
 });
 
+// @route   GET /api/admin/users
+// @desc    Get all users (excluding admins)
+// @access  Public (Temporary - Remove in production)
+router.get('/users', async (req, res) => {
+    try {
+        const { page = 1, limit = 20, status } = req.query;
+        const skip = (page - 1) * limit;
+
+        const query = { role: 'player' }; // Only get players, exclude admins
+        if (status && status !== 'all') {
+            query.isActive = status === 'active';
+        }
+
+        const users = await User.find(query)
+            .select('-password')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        const total = await User.countDocuments(query);
+
+        res.json({
+            success: true,
+            users,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
+
+    } catch (error) {
+        console.error('Admin get users error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch users',
+            error: error.message
+        });
+    }
+});
+
 // @route   GET /api/admin/analytics
 // @desc    Get analytics data
 // @access  Public (Temporary - Remove in production)
