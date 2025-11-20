@@ -345,6 +345,39 @@ class TournamentController {
         return matches;
     }
 
+    // Delete tournament
+    static async deleteTournament(req, res) {
+        try {
+            const tournament = await Tournament.findById(req.params.id);
+
+            if (!tournament) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Tournament not found'
+                });
+            }
+
+            // Delete all matches associated with this tournament
+            await Match.deleteMany({ tournament: tournament._id });
+
+            // Delete the tournament
+            await Tournament.findByIdAndDelete(req.params.id);
+
+            res.json({
+                success: true,
+                message: 'Tournament deleted successfully'
+            });
+
+        } catch (error) {
+            console.error('Delete tournament error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Failed to delete tournament',
+                error: error.message
+            });
+        }
+    }
+
     // Get tournament standings
     static async getStandings(req, res) {
         try {
@@ -365,20 +398,20 @@ class TournamentController {
             });
 
             const standings = tournament.participants.map(participant => {
-                const playerMatches = matches.filter(match => 
+                const playerMatches = matches.filter(match =>
                     match.player1.user.toString() === participant.player._id.toString() ||
                     match.player2.user.toString() === participant.player._id.toString()
                 );
 
-                const wins = playerMatches.filter(match => 
+                const wins = playerMatches.filter(match =>
                     match.result.winner?.toString() === participant.player._id.toString()
                 ).length;
 
-                const losses = playerMatches.filter(match => 
+                const losses = playerMatches.filter(match =>
                     match.result.loser?.toString() === participant.player._id.toString()
                 ).length;
 
-                const draws = playerMatches.filter(match => 
+                const draws = playerMatches.filter(match =>
                     match.result.isDraw
                 ).length;
 

@@ -366,4 +366,47 @@ router.get('/:id/standings', async (req, res) => {
     }
 });
 
+// @route   DELETE /api/admin/tournaments/:id
+// @desc    Delete a tournament (Admin only)
+// @access  Private/Admin
+router.delete('/admin/tournaments/:id', adminAuth, async (req, res) => {
+    try {
+        const tournament = await Tournament.findById(req.params.id);
+        
+        if (!tournament) {
+            return res.status(404).json({
+                success: false,
+                message: 'Tournament not found'
+            });
+        }
+
+        // Check if the user is the organizer or an admin
+        if (tournament.organizer.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to delete this tournament'
+            });
+        }
+
+        // Delete all matches associated with this tournament
+        await Match.deleteMany({ tournament: tournament._id });
+        
+        // Delete the tournament
+        await tournament.remove();
+
+        res.json({
+            success: true,
+            message: 'Tournament deleted successfully'
+        });
+
+    } catch (error) {
+        console.error('Delete tournament error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete tournament',
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;

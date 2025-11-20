@@ -92,7 +92,7 @@ router.post('/register', async (req, res) => {
             whatsapp: whatsapp.trim(),
             efootballId: efootballId.trim(),
             password: password, // Will be hashed in pre-save hook
-            role: 'user',
+            role: 'player',
             isActive: true,
             isVerified: true, // Auto-verify for now
             profile: {

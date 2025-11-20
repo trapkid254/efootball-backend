@@ -4,6 +4,7 @@ const Match = require('../models/Match');
 const User = require('../models/Users');
 const Payment = require('../models/Payment');
 const Leaderboard = require('../models/Leaderboard');
+const TournamentController = require('../controllers/tournamentController');
 const adminAuth = require('../middleware/adminAuth');
 const router = express.Router();
 
@@ -173,6 +174,11 @@ router.get('/tournaments/:id', adminAuth, async (req, res) => {
         });
     }
 });
+
+// @route   DELETE /api/admin/tournaments/:id
+// @desc    Delete a tournament and all associated matches
+// @access  Private (Admin)
+router.delete('/tournaments/:id', adminAuth, TournamentController.deleteTournament);
 
 // @route   DELETE /api/admin/tournaments/:id/participants/:participantId
 // @desc    Remove participant from tournament
