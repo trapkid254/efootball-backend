@@ -37,13 +37,16 @@ router.get('/available-tournaments', auth, async (req, res) => {
     try {
         // Find tournaments that are open for registration and the user hasn't joined yet
         const tournaments = await Tournament.find({
-            'registration.status': 'open',
-            'participants.player': { $ne: req.user.id },
+            // User hasn't joined this tournament
             'participants': { $not: { $elemMatch: { player: req.user.id } } },
-            status: 'upcoming'
+            // Tournament is upcoming and public
+            status: 'upcoming',
+            isPublic: true,
+            // Tournament is not full
+            $expr: { $lt: [{ $size: '$participants' }, '$settings.capacity'] }
         })
         .populate('organizer', 'efootballId profile')
-        .sort({ 'schedule.registrationDeadline': 1 });
+        .sort({ 'schedule.tournamentStart': 1 });
 
         res.json({
             success: true,
