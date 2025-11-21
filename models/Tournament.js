@@ -265,7 +265,7 @@ tournamentSchema.methods.addParticipant = function(userId) {
     });
     
     // Check if we've reached capacity and need to generate fixtures
-    if (this.participantCount + 1 === this.settings.capacity && this.format !== 'league') {
+    if (this.participantCount + 1 === this.settings.capacity) {
         this.generateFixtures();
     }
     
@@ -318,19 +318,63 @@ tournamentSchema.methods.generateFixtures = async function() {
     if (this.status === 'completed') {
         throw new Error('Cannot generate fixtures for a completed tournament');
     }
-    
+
     if (this.participantCount < 2) {
         throw new Error('Need at least 2 participants to generate fixtures');
     }
-    
+
     // Generate fixtures using the fixture generator
     const matches = await generateFixtures(this);
-    
+
     // Save matches and update tournament
     const savedMatches = await Match.insertMany(matches);
-    this.matches = savedMatches.map(match => match._id);
-    this.status = 'upcoming';
-    
+
+    // Update tournament status to active since matches are now scheduled
+    this.status = 'active';
+
+    // For group stage tournaments, create groups
+    if (this.format === 'group') {
+        await this.createGroups(savedMatches);
+    }
+
+    return this.save();
+};
+
+/**
+ * Create groups for group stage tournaments
+ * @param {Array} matches - The generated matches
+ * @returns {Promise} Resolves when groups are created
+ */
+tournamentSchema.methods.createGroups = async function(matches) {
+    const groupCount = Math.ceil(this.participants.length / 4); // 4 players per group
+    const groups = [];
+
+    // Create groups
+    for (let i = 0; i < groupCount; i++) {
+        groups.push({
+            name: `Group ${String.fromCharCode(65 + i)}`,
+            players: [],
+            matches: []
+        });
+    }
+
+    // Distribute players to groups
+    this.participants.forEach((participant, index) => {
+        const groupIndex = index % groupCount;
+        groups[groupIndex].players.push(participant.player);
+    });
+
+    // Assign matches to groups
+    matches.forEach(match => {
+        if (match.group) {
+            const group = groups.find(g => g.name === match.group);
+            if (group) {
+                group.matches.push(match._id);
+            }
+        }
+    });
+
+    this.groups = groups;
     return this.save();
 };
 

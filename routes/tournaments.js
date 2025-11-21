@@ -240,6 +240,14 @@ router.post('/:id/join', auth, async (req, res) => {
             });
         }
 
+        // Check if tournament is full
+        if (tournament.participants.filter(p => p.status === 'registered').length >= tournament.settings.capacity) {
+            return res.status(400).json({
+                success: false,
+                message: 'Tournament is full - no more registrations allowed'
+            });
+        }
+
         // Add participant
         await tournament.addParticipant(req.user.id);
         await tournament.populate('participants.player', 'efootballId profile');
