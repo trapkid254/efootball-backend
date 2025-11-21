@@ -142,6 +142,11 @@ const matchSchema = new mongoose.Schema({
         type: Date,
         required: true
     },
+    leg: {
+        type: Number,
+        enum: [1, 2],
+        default: null
+    },
     actualStartTime: Date,
     actualEndTime: Date,
     status: {

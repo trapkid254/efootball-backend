@@ -51,13 +51,13 @@ router.get('/me', auth, async (req, res) => {
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
-        
+
         // If avatar exists, create a URL to access it
         let avatarUrl = null;
         if (user.avatar) {
             avatarUrl = `/uploads/avatars/${user.avatar}`;
         }
-        
+
         res.json({
             id: user._id,
             efootballId: user.efootballId,
@@ -74,6 +74,31 @@ router.get('/me', auth, async (req, res) => {
         });
     } catch (err) {
         console.error('Error fetching user profile:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// @route   GET /api/users/tournaments
+// @desc    Get tournaments the user has registered for
+// @access  Private
+router.get('/tournaments', auth, async (req, res) => {
+    try {
+        const Tournament = require('../models/Tournament');
+
+        const tournaments = await Tournament.find({
+            'participants.player': req.user.id,
+            'participants.status': 'registered'
+        })
+        .populate('organizer', 'efootballId profile')
+        .populate('participants.player', 'efootballId profile')
+        .sort({ 'schedule.tournamentStart': -1 });
+
+        res.json({
+            success: true,
+            tournaments
+        });
+    } catch (err) {
+        console.error('Error fetching user tournaments:', err);
         res.status(500).json({ message: 'Server error' });
     }
 });
@@ -132,22 +157,34 @@ router.post('/avatar', [auth, upload.single('avatar')], async (req, res) => {
 // @access  Private
 router.put('/profile', auth, async (req, res) => {
     const { efootballId, whatsapp } = req.body;
-    
+
     try {
         const user = await User.findById(req.user.id);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Update fields if they are provided
-        if (efootballId) user.efootballId = efootballId;
-        if (whatsapp) user.whatsapp = whatsapp;
+        // Prevent eFootball ID changes - users cannot modify their eFootball ID
+        if (efootballId && efootballId !== user.efootballId) {
+            return res.status(400).json({
+                message: 'Efootball ID cannot be changed. Contact support if you need to update your eFootball ID.'
+            });
+        }
+
+        // Update only allowed fields
+        if (whatsapp) {
+            // Validate WhatsApp format
+            if (!/^(07\d{8}|2547\d{8}|\+2547\d{8})$/.test(whatsapp.replace(/\s/g, ''))) {
+                return res.status(400).json({ message: 'Please provide a valid WhatsApp number' });
+            }
+            user.whatsapp = whatsapp;
+        }
 
         await user.save();
-        
+
         // Get updated user data
         const userData = await User.findById(req.user.id).select('-password');
-        
+
         res.json({
             message: 'Profile updated successfully',
             user: {

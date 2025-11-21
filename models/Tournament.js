@@ -27,6 +27,11 @@ const tournamentSchema = new mongoose.Schema({
         enum: ['knockout', 'group', 'group+knockout', 'league'],
         required: true
     },
+    matchFormat: {
+        type: String,
+        enum: ['one-leg', 'two-legs'],
+        default: 'one-leg'
+    },
     status: {
         type: String,
         enum: ['draft', 'upcoming', 'active', 'completed', 'cancelled'],

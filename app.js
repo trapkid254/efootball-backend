@@ -342,6 +342,7 @@ app.use('/api/players', require('./routes/players'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/activity', require('./routes/activity'));
+app.use('/api/leaderboard', require('./routes/leaderboard'));
 
 // Temporary admin routes (unsecured - for development only)
 app.use('/api/temp-admin', require('./routes/tempAdmin'));

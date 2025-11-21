@@ -43,44 +43,80 @@ const generateKnockoutFixtures = async (tournament, participants, matches) => {
     let round = 1;
     let currentRound = participants;
     let matchNumber = 1;
-    
+
     while (currentRound.length > 1) {
         const nextRound = [];
         const roundName = getRoundName(round, currentRound.length);
-        
+
         // If odd number of participants, one gets a bye
         if (currentRound.length % 2 !== 0) {
             const byeIndex = Math.floor(Math.random() * currentRound.length);
             const [byePlayer] = currentRound.splice(byeIndex, 1);
             nextRound.push(byePlayer);
         }
-        
+
         // Create matches for current round
         for (let i = 0; i < currentRound.length; i += 2) {
             const player1 = currentRound[i];
             const player2 = currentRound[i + 1] || null; // Could be null for bye
-            
-            matches.push({
-                tournament: tournament._id,
-                round: roundName,
-                matchNumber: matchNumber++,
-                player1: { user: player1 },
-                player2: player2 ? { user: player2 } : null,
-                status: player2 ? 'scheduled' : 'completed',
-                result: player2 ? null : { 
-                    winner: player1,
-                    isDraw: false,
-                    confirmedBy: tournament.organizer
-                }
-            });
-            
+
             if (player2) {
+                // Generate matches based on match format
+                if (tournament.matchFormat === 'two-legs') {
+                    // First leg: player1 vs player2
+                    matches.push({
+                        tournament: tournament._id,
+                        round: `${roundName} - First Leg`,
+                        matchNumber: matchNumber++,
+                        player1: { user: player1 },
+                        player2: { user: player2 },
+                        status: 'scheduled',
+                        leg: 1
+                    });
+
+                    // Second leg: player2 vs player1
+                    matches.push({
+                        tournament: tournament._id,
+                        round: `${roundName} - Second Leg`,
+                        matchNumber: matchNumber++,
+                        player1: { user: player2 },
+                        player2: { user: player1 },
+                        status: 'scheduled',
+                        leg: 2
+                    });
+                } else {
+                    // One leg match
+                    matches.push({
+                        tournament: tournament._id,
+                        round: roundName,
+                        matchNumber: matchNumber++,
+                        player1: { user: player1 },
+                        player2: { user: player2 },
+                        status: 'scheduled'
+                    });
+                }
+
                 nextRound.push(null); // Placeholder for winner
             } else {
+                // Bye - player advances automatically
+                matches.push({
+                    tournament: tournament._id,
+                    round: roundName,
+                    matchNumber: matchNumber++,
+                    player1: { user: player1 },
+                    player2: null,
+                    status: 'completed',
+                    result: {
+                        winner: player1,
+                        isDraw: false,
+                        confirmedBy: tournament.organizer
+                    }
+                });
+
                 nextRound.push(player1); // Player with bye advances
             }
         }
-        
+
         currentRound = nextRound;
         round++;
     }
