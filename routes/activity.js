@@ -27,6 +27,14 @@ router.get('/recent', auth, async (req, res) => {
         .populate('player2.player', 'efootballId')
         .populate('tournament', 'name');
 
+        // Get recent tournament registrations (last 5)
+        const recentRegistrations = await Tournament.find({
+            'participants.player': userId
+        })
+        .populate('organizer', 'efootballId profile')
+        .sort({ 'participants.joinedAt': -1 })
+        .limit(5);
+
         // Get recent tournament activity (last 5)
         const recentTournaments = await Tournament.find({
             'participants.player': userId,
@@ -72,9 +80,9 @@ router.get('/recent', auth, async (req, res) => {
         // Add tournament activities
         recentTournaments.forEach(tournament => {
             const participant = tournament.participants.find(p => p.player.toString() === userId);
-            
+
             let title, description;
-            
+
             if (tournament.status === 'completed') {
                 const isWinner = tournament.winner?.toString() === userId;
                 title = isWinner ? 'Tournament Won!' : 'Tournament Completed';
@@ -84,7 +92,7 @@ router.get('/recent', auth, async (req, res) => {
             } else {
                 title = 'Tournament Update';
                 description = `Your tournament ${tournament.name} is in progress`;
-                
+
                 // Add specific updates based on tournament progress
                 if (participant?.nextMatch) {
                     description = `Your next match in ${tournament.name} is ready`;
@@ -92,7 +100,7 @@ router.get('/recent', auth, async (req, res) => {
                     description = `You've been eliminated from ${tournament.name}`;
                 }
             }
-            
+
             activities.push({
                 type: 'tournament',
                 title,
@@ -102,6 +110,22 @@ router.get('/recent', auth, async (req, res) => {
                     tournamentId: tournament._id
                 }
             });
+        });
+
+        // Add registration activities
+        recentRegistrations.forEach(tournament => {
+            const participant = tournament.participants.find(p => p.player.toString() === userId);
+            if (participant) {
+                activities.push({
+                    type: 'registration',
+                    title: 'Tournament Registration',
+                    description: `You registered for ${tournament.name}`,
+                    timestamp: participant.joinedAt,
+                    data: {
+                        tournamentId: tournament._id
+                    }
+                });
+            }
         });
 
         // Sort activities by timestamp (newest first) and limit to 10

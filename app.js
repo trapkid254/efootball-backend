@@ -164,38 +164,14 @@ const app = express();
 
 // Security Middleware
 app.use(helmet());
+
 // CORS configuration
-const allowedOrigins = [
-    'https://tonakikwetu.netlify.app',
-    'http://localhost:3000',
-    'http://localhost:5500',
-    'http://127.0.0.1:5500',
-    'http://localhost:5000',
-    'https://efootball-backend-f8ws.onrender.com',
-    process.env.FRONTEND_URL
-].filter(Boolean);
-
-console.log('Allowed CORS origins:', allowedOrigins);
-
-// Enable CORS for all routes
-app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    
-    // Allow all origins for now (for testing)
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Max-Age', '600');
-    
-    // Handle preflight request
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-    
-    console.log(`✅ Request from origin: ${origin || 'no-origin'} (${req.method} ${req.path})`);
-    next();
-});
+app.use(cors({
+    origin: true, // Allow all origins
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 
 // Add a health check endpoint
 app.get('/api/auth/health', (req, res) => {
@@ -355,8 +331,6 @@ app.get('/api/test', (req, res) => {
     });
 });
 
-// Serve static files from uploads directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));

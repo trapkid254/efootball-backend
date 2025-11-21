@@ -366,10 +366,10 @@ router.get('/:id/standings', async (req, res) => {
     }
 });
 
-// @route   DELETE /api/admin/tournaments/:id
+// @route   DELETE /api/tournaments/:id
 // @desc    Delete a tournament (Admin only)
 // @access  Private/Admin
-router.delete('/admin/tournaments/:id', adminAuth, async (req, res) => {
+router.delete('/:id', adminAuth, async (req, res) => {
     try {
         const tournament = await Tournament.findById(req.params.id);
         
