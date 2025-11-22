@@ -274,7 +274,7 @@ router.post('/:id/join', auth, async (req, res) => {
 router.post('/:id/leave', auth, async (req, res) => {
     try {
         const tournament = await Tournament.findById(req.params.id);
-        
+
         if (!tournament) {
             return res.status(404).json({
                 success: false,
@@ -304,6 +304,55 @@ router.post('/:id/leave', auth, async (req, res) => {
         res.status(500).json({
             success: false,
             message: error.message || 'Failed to leave tournament',
+            error: error.message
+        });
+    }
+});
+
+// @route   POST /api/tournaments/:id/generate-fixtures
+// @desc    Generate fixtures for a tournament (Admin only)
+// @access  Private/Admin
+router.post('/:id/generate-fixtures', adminAuth, async (req, res) => {
+    try {
+        const tournament = await Tournament.findById(req.params.id);
+
+        if (!tournament) {
+            return res.status(404).json({
+                success: false,
+                message: 'Tournament not found'
+            });
+        }
+
+        if (tournament.status !== 'upcoming') {
+            return res.status(400).json({
+                success: false,
+                message: 'Can only generate fixtures for upcoming tournaments'
+            });
+        }
+
+        const participants = tournament.participants.filter(p => p.status === 'registered');
+
+        if (participants.length < 2) {
+            return res.status(400).json({
+                success: false,
+                message: 'Need at least 2 participants to generate fixtures'
+            });
+        }
+
+        // Generate matches based on tournament format
+        const matches = await require('../controllers/tournamentController').generateMatches(tournament, participants);
+
+        res.json({
+            success: true,
+            message: 'Fixtures generated successfully',
+            matches
+        });
+
+    } catch (error) {
+        console.error('Generate fixtures error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to generate fixtures',
             error: error.message
         });
     }

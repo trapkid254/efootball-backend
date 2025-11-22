@@ -252,7 +252,7 @@ tournamentSchema.methods.addParticipant = function(userId) {
     
     this.participants.push({
         player: userId,
-        seed: this.participantCount + 1,
+        seed: this.participants.filter(p => p.status === 'registered').length,
         stats: {
             matchesPlayed: 0,
             wins: 0,
@@ -263,9 +263,11 @@ tournamentSchema.methods.addParticipant = function(userId) {
             points: 0
         }
     });
-    
+
     // Check if we've reached capacity and need to generate fixtures
-    if (this.participantCount + 1 === this.settings.capacity) {
+    const registeredCount = this.participants.filter(p => p.status === 'registered').length;
+    if (registeredCount === this.settings.capacity) {
+        console.log(`Tournament ${this.name} reached capacity (${registeredCount}/${this.settings.capacity}), generating fixtures...`);
         this.generateFixtures();
     }
     
