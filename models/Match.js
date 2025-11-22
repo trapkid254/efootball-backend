@@ -294,8 +294,9 @@ matchSchema.methods.submitScore = function(player, score, screenshot = null, goa
 
 // Method to verify result (admin only)
 matchSchema.methods.verifyResult = function(adminId) {
+    // Allow verification even if scores weren't submitted by players (for admin manual input)
     if (this.player1.score === null || this.player2.score === null) {
-        throw new Error('Both players must have submitted scores');
+        throw new Error('Both players must have scores set before verification');
     }
 
     if (this.player1.score > this.player2.score) {
@@ -310,10 +311,12 @@ matchSchema.methods.verifyResult = function(adminId) {
         this.result.isDraw = true;
     }
 
+    this.result.winnerScore = Math.max(this.player1.score, this.player2.score);
+    this.result.loserScore = Math.min(this.player1.score, this.player2.score);
     this.result.confirmedBy = adminId;
     this.result.confirmedAt = new Date();
     this.status = 'completed';
-    
+
     return this.save();
 };
 

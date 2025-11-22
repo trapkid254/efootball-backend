@@ -220,6 +220,62 @@ router.get('/admin/pending', adminAuth, async (req, res) => {
     }
 });
 
+// @route   POST /api/matches/:id/admin-update
+// @desc    Admin manually update match scores and verify
+// @access  Private (Admin)
+router.post('/:id/admin-update', adminAuth, async (req, res) => {
+    try {
+        const { player1Score, player2Score } = req.body;
+
+        if (player1Score === undefined || player2Score === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: 'Both player scores are required'
+            });
+        }
+
+        const match = await Match.findById(req.params.id);
+
+        if (!match) {
+            return res.status(404).json({
+                success: false,
+                message: 'Match not found'
+            });
+        }
+
+        if (match.status === 'completed') {
+            return res.status(400).json({
+                success: false,
+                message: 'Match is already completed'
+            });
+        }
+
+        // Set the scores manually
+        match.player1.score = parseInt(player1Score);
+        match.player2.score = parseInt(player2Score);
+        match.player1.confirmed = true;
+        match.player2.confirmed = true;
+
+        // Verify the result immediately
+        await match.verifyResult(req.user.id);
+        await match.populate('player1.user player2.user', 'efootballId profile');
+
+        res.json({
+            success: true,
+            message: 'Match scores updated and verified successfully',
+            match
+        });
+
+    } catch (error) {
+        console.error('Admin update match error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update match scores',
+            error: error.message
+        });
+    }
+});
+
 // @route   GET /api/matches/admin/all
 // @desc    Get all matches for admin management
 // @access  Private (Admin)
