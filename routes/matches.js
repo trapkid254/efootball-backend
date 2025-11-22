@@ -220,4 +220,51 @@ router.get('/admin/pending', adminAuth, async (req, res) => {
     }
 });
 
+// @route   GET /api/matches/admin/all
+// @desc    Get all matches for admin management
+// @access  Private (Admin)
+router.get('/admin/all', adminAuth, async (req, res) => {
+    try {
+        const { status, tournament, page = 1, limit = 50 } = req.query;
+
+        const query = {};
+
+        if (status && status !== 'all') {
+            query.status = status;
+        }
+
+        if (tournament && tournament !== 'all') {
+            query.tournament = tournament;
+        }
+
+        const matches = await Match.find(query)
+            .populate('tournament', 'name format status')
+            .populate('player1.user player2.user', 'efootballId profile')
+            .sort({ createdAt: -1 })
+            .limit(limit * 1)
+            .skip((page - 1) * limit);
+
+        const total = await Match.countDocuments(query);
+
+        res.json({
+            success: true,
+            matches,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
+
+    } catch (error) {
+        console.error('Get all matches error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch matches',
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;
