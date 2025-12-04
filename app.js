@@ -165,36 +165,48 @@ const app = express();
 // Security Middleware
 app.use(helmet());
 
-// CORS configuration
-app.use(cors({
+// CORS Configuration
+const corsOptions = {
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
-
+        
+        // List of allowed origins
         const allowedOrigins = [
             'http://localhost:3000',
+            'http://localhost:8080',
+            'http://localhost:5500',
+            'http://127.0.0.1:5500',
             'http://localhost:10000',
-            'https://tonakikwetu.netlify.app',
-            'https://tonakikwetu.com',
-            'http://127.0.0.1:3000',
-            'http://127.0.0.1:10000'
+            'http://127.0.0.1:10000',
+            'http://localhost:5501',
+            'http://127.0.0.1:5501',
+            'https://tona-kikwetu.vercel.app',
+            'https://tona-kikwetu.vercel.app/'
         ];
 
-        if (allowedOrigins.includes(origin)) {
+        // Check if the origin is in the allowed list
+        if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app') || origin.endsWith('.netlify.app')) {
             return callback(null, true);
         }
 
-        // Allow all localhost origins for development
-        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        // For development, allow all origins
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('Allowing origin in development:', origin);
             return callback(null, true);
         }
 
-        return callback(new Error('Not allowed by CORS'));
+        // Block the request if the origin is not allowed
+        console.log('Blocked by CORS:', origin);
+        callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Content-Range', 'X-Total-Count']
+};
+
+app.use(cors(corsOptions));
 
 // Add a health check endpoint
 app.get('/api/auth/health', (req, res) => {
@@ -293,12 +305,11 @@ const startServer = async () => {
         const DEFAULT_PORT = 10000;
         const port = process.env.PORT || DEFAULT_PORT;
         
-        // Get an available port
-        const availablePort = await getAvailablePort(port);
-        
-        const server = app.listen(availablePort, () => {
-            console.log(`🚀 Server is running on port ${availablePort}`);
-            console.log(`🌐 Health check: http://localhost:${availablePort}/api/auth/health`);
+        // Force the port to be 10000 in development
+        const server = app.listen(port, '0.0.0.0', () => {
+            console.log(`🚀 Server is running on port ${port}`);
+            console.log(`🌐 Health check: http://localhost:${port}/api/auth/health`);
+            console.log(`🌐 API Base URL: http://localhost:${port}`);
         });
         
         // Handle server errors
