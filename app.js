@@ -248,7 +248,7 @@ const connectDB = async () => {
 };
 
 // Function to get an available port
-const getAvailablePort = async (port) => {
+const getAvailablePort = (port) => {
     const net = require('net');
     const MAX_PORT = 65535;
     
@@ -258,52 +258,32 @@ const getAvailablePort = async (port) => {
         port = 10000; // Reset to default if invalid
     }
     
-    return new Promise((resolve, reject) => {
-        // If we've reached the maximum port number, reject with an error
-        if (port > MAX_PORT) {
-            return reject(new Error(`No available ports found (tried up to port ${port - 1})`));
-        }
-        
+    return new Promise((resolve) => {
         const server = net.createServer();
-        server.unref();
         
-        server.on('error', (err) => {
-            if (err.code === 'EADDRINUSE') {
-                // Port is in use, try the next one
-                console.log(`Port ${port} is in use, trying ${port + 1}...`);
-                return resolve(getAvailablePort(port + 1));
-            }
-            // For other errors, reject the promise
-            reject(err);
-        });
-        
-        server.listen(port, '0.0.0.0', () => {
+        server.on('listening', () => {
             const { port: availablePort } = server.address();
             server.close(() => {
                 console.log(`Found available port: ${availablePort}`);
                 resolve(availablePort);
             });
         });
-    });
-};
-
-// Function to get an available port
-const getAvailablePort = (port) => {
-    return new Promise((resolve, reject) => {
-        const server = require('http').createServer();
-        server.listen(port, '0.0.0.0');
-        server.on('listening', () => {
-            server.close();
-            resolve(port);
-        });
+        
         server.on('error', (err) => {
             if (err.code === 'EADDRINUSE') {
                 console.warn(`⚠️  Port ${port} is in use, trying next port...`);
+                if (port >= MAX_PORT) {
+                    console.error('❌ Reached maximum port number');
+                    process.exit(1);
+                }
                 resolve(getAvailablePort(port + 1));
             } else {
-                reject(err);
+                console.error('❌ Server error:', err);
+                process.exit(1);
             }
         });
+        
+        server.listen(port, '0.0.0.0');
     });
 };
 
@@ -327,6 +307,7 @@ const startServer = async () => {
             // Update the API_BASE_URL in the environment if needed
             if (process.env.NODE_ENV === 'development') {
                 process.env.API_BASE_URL = `http://localhost:${availablePort}`;
+                console.log(`🌍 Development API Base URL set to: ${process.env.API_BASE_URL}`);
             }
         });
         
