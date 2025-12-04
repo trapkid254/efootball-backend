@@ -168,31 +168,20 @@ app.use(helmet());
 // CORS Configuration
 const corsOptions = {
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
-        
-        // List of allowed origins
-        const allowedOrigins = [
-            'http://localhost:3000',
-            'http://localhost:8080',
-            'http://localhost:5500',
-            'http://127.0.0.1:5500',
-            'http://localhost:10000',
-            'http://127.0.0.1:10000',
-            'http://localhost:5501',
-            'http://127.0.0.1:5501',
-            'https://tona-kikwetu.vercel.app',
-            'https://tona-kikwetu.vercel.app/'
-        ];
-
-        // Check if the origin is in the allowed list
-        if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app') || origin.endsWith('.netlify.app')) {
+        // Allow all origins in development
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('Allowing origin in development:', origin);
             return callback(null, true);
         }
 
-        // For development, allow all origins
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('Allowing origin in development:', origin);
+        // In production, only allow specific origins
+        const allowedOrigins = [
+            'https://tona-kikwetu.vercel.app',
+            'https://tona-kikwetu.netlify.app'
+        ];
+
+        // Check if the origin is in the allowed list
+        if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app') || origin.endsWith('.netlify.app')) {
             return callback(null, true);
         }
 
@@ -202,8 +191,9 @@ const corsOptions = {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    exposedHeaders: ['Content-Range', 'X-Total-Count']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Content-Length', 'Accept'],
+    exposedHeaders: ['Content-Range', 'X-Total-Count'],
+    maxAge: 600 // 10 minutes
 };
 
 app.use(cors(corsOptions));
@@ -297,6 +287,26 @@ const getAvailablePort = async (port) => {
     });
 };
 
+// Function to get an available port
+const getAvailablePort = (port) => {
+    return new Promise((resolve, reject) => {
+        const server = require('http').createServer();
+        server.listen(port, '0.0.0.0');
+        server.on('listening', () => {
+            server.close();
+            resolve(port);
+        });
+        server.on('error', (err) => {
+            if (err.code === 'EADDRINUSE') {
+                console.warn(`⚠️  Port ${port} is in use, trying next port...`);
+                resolve(getAvailablePort(port + 1));
+            } else {
+                reject(err);
+            }
+        });
+    });
+};
+
 // Start the server
 const startServer = async () => {
     try {
@@ -305,24 +315,25 @@ const startServer = async () => {
         const DEFAULT_PORT = 10000;
         const port = process.env.PORT || DEFAULT_PORT;
         
-        // Force the port to be 10000 in development
-        const server = app.listen(port, '0.0.0.0', () => {
-            console.log(`🚀 Server is running on port ${port}`);
-            console.log(`🌐 Health check: http://localhost:${port}/api/auth/health`);
-            console.log(`🌐 API Base URL: http://localhost:${port}`);
+        // Get an available port
+        const availablePort = await getAvailablePort(port);
+        
+        // Start the server on the available port
+        const server = app.listen(availablePort, '0.0.0.0', () => {
+            console.log(`🚀 Server is running on port ${availablePort}`);
+            console.log(`🌐 Health check: http://localhost:${availablePort}/api/auth/health`);
+            console.log(`🌐 API Base URL: http://localhost:${availablePort}`);
+            
+            // Update the API_BASE_URL in the environment if needed
+            if (process.env.NODE_ENV === 'development') {
+                process.env.API_BASE_URL = `http://localhost:${availablePort}`;
+            }
         });
         
         // Handle server errors
         server.on('error', (error) => {
-            if (error.code === 'EADDRINUSE') {
-                console.warn(`⚠️  Port ${availablePort} is in use, trying next port...`);
-                // Try the next port
-                server.close();
-                startServer(availablePort + 1);
-            } else {
-                console.error('❌ Server error:', error);
-                process.exit(1);
-            }
+            console.error('❌ Server error:', error);
+            process.exit(1);
         });
         
         // Handle process termination
